@@ -1,26 +1,14 @@
-"""Basic movement tests, MWE.
-
-Note that use_impedance=False is necessary since we mounted a camera.
-Well, not strictly necessary but I think it makes more sense in our case.
-"""
 import numpy as np
 np.set_printoptions(precision=4)
 from frankapy import FrankaArm
+from autolab_core import RigidTransform
 
-
-if __name__ == "__main__":
-    print('Creating the Franka Arm...')
-    fa = FrankaArm()
-
-    # Starting pose.
-    T_ee_world = fa.get_pose()
-    print('Starting pose:\n\tTranslation: {} | Rotation: {}'.format(
-        T_ee_world.translation, T_ee_world.quaternion))
-
-    # Translate z upwards.
-    T_ee_world.translation += [0., 0., 0.05]
-    fa.goto_pose(T_ee_world, use_impedance=False)
-
-    T_ee_world = fa.get_pose()
-    print('Pose after translation.\n\tTranslation: {} | Rotation: {}'.format(
-        T_ee_world.translation, T_ee_world.quaternion))
+fa = FrankaArm()
+T_ee_world = fa.get_pose()
+deg = 120
+T_ee_rot = RigidTransform(
+    rotation=RigidTransform.z_axis_rotation(np.deg2rad(deg)),
+    from_frame='franka_tool', to_frame='franka_tool'
+)
+T_ee_world_target = T_ee_world * T_ee_rot
+fa.goto_pose(T_ee_world_target, use_impedance=False)
