@@ -1,9 +1,23 @@
-# gctn_physical
+# Physical GCTN Experiments.
 
-Physical GCTN
+## Usage
+
+- Make sure we have a model of GCTN available.
+- Make sure `takeshi` is running with a script.
+- Make sure we're in our Python 3.6 conda env (I name it `franka`).
+
+Run the following commands:
+
+```
+python main.py [args]
+```
+
+See that script for more, and `daniel_utils.py` for a bunch of utility methods.
+
+Use `python data_collect.py` to collect demonstration data.
 
 
-Some random tips from Oliver's students:
+## Some random tips from Oliver's students:
 
 From Kevin:
 

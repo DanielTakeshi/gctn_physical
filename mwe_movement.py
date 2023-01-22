@@ -1,4 +1,4 @@
-"""Basic movement tests.
+"""Basic movement tests, MWE.
 
 Note that use_impedance=False is necessary since we mounted a camera.
 Well, not strictly necessary but I think it makes more sense in our case.
