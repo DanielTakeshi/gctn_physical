@@ -17,6 +17,9 @@ See that script for more, and `daniel_utils.py` for a bunch of utility methods.
 Use `python data_collect.py` to collect demonstration data.
 
 
+- The scripts with `basic` in them are meant for quick testing and proofs of concept.
+
+
 ## Some random tips from Oliver's students:
 
 From Kevin:

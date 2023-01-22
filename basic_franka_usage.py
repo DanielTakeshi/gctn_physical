@@ -38,16 +38,6 @@ JOINTS_GRIP = np.array([-0.4803, -0.503, 0.1917, -2.8445, 0.104, 2.3419, -2.7057
 # ---------------------------------------------------------------------------------- #
 
 
-def camera_stuff(fa):
-    """How do we make use of a camera?"""
-    T_ee_world = fa.get_pose()
-    joints = fa.get_joints()
-
-    print('Translation: {} | Rotation: {}'.format(
-            T_ee_world.translation, T_ee_world.quaternion))
-    print('Joints: {}'.format(joints))
-
-
 def ee_rotation_tests(fa):
     """Test the z-axis EE rotations.
 
@@ -150,6 +140,4 @@ if __name__ == "__main__":
 
     #daniel_testing(fa)
     #ee_rotation_tests(fa)
-    camera_stuff(fa)
-
     print('Finished with tests.')
