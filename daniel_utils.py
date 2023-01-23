@@ -7,11 +7,14 @@ from autolab_core import RigidTransform
 np.set_printoptions(suppress=True, precision=4, linewidth=150)
 
 
-def rotate_EE_one_axis(fa, deg, axis, use_impedance=False):
+def rotate_EE_one_axis(fa, deg, axis, use_impedance=False, duration=12):
     """Just do one EE axis rotation.
 
     Empirically, seems like abs(deg) has to be at least 4 to observe any
-    notable robot movement.
+    notable robot movement. Also, I'd increase the duration from the
+    default of 3.
+
+    Default duration
     """
     assert np.abs(deg) <= 145., f'deg: {deg}, careful that is a lot...'
     print(f'Rotation in EE frame by {deg} deg, axis: {axis}.')
@@ -36,7 +39,9 @@ def rotate_EE_one_axis(fa, deg, axis, use_impedance=False):
         raise ValueError(axis)
 
     T_ee_world_target = T_ee_world * T_ee_rot
-    fa.goto_pose(T_ee_world_target, use_impedance=use_impedance)
+    fa.goto_pose(
+        T_ee_world_target, duration=duration, use_impedance=use_impedance
+    )
 
 
 def pick_and_place():
