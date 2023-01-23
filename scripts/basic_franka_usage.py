@@ -47,8 +47,12 @@ def ee_rotation_tests(fa):
     do this is to assume that the default pose (with camera mounted to me) is at
     'rotation angle 0' and then we just work from there with offsets.
 
+    Unfortunately the way the camera is mounted means when we rotate the gripper, we
+    are close to one of the extremes of the rotation of the EE.
+
     Careful: do rotations cause potential issues? Try this again and then do a MWE
-    if needed. Wait, sometimes it works, sometimes it doesn't?
+    if needed. Sometimes it works, sometimes it doesn't. Tip from the iam-lab: try
+    increasing the duration of the command.
     """
     T_ee_world = fa.get_pose()
     joints = fa.get_joints()
@@ -66,14 +70,23 @@ def ee_rotation_tests(fa):
         T_ee_world.translation += [0., 0.0, -0.0]
         fa.goto_pose(T_ee_world, use_impedance=False)
 
-    # Adjust robot positions.
+    # Adjust robot positions. Note: careful, this WILL rotate the EE to default.
     #fa.goto_joints(JOINTS_HOME, use_impedance=False)
-    #fa.goto_joints(JOINTS_GRIP, use_impedance=False)
+    fa.goto_joints(JOINTS_GRIP, duration=20, use_impedance=False)
 
     # Test rotations. Unfortunately, seems like -10 is all we can get in one direction.
     # But I think we can go about +145 in the other direction.
     #DU.rotate_EE_one_axis(fa, deg=-10, axis='z')
-    DU.rotate_EE_one_axis(fa, deg=-90, axis='z')
+    #DU.rotate_EE_one_axis(fa, deg=120, axis='z', duration=20)
+
+    # This stopped at the second rotation. :(
+    #print('First rotation of 55 deg...')
+    #DU.rotate_EE_one_axis(fa, deg=55, axis='z', duration=20)
+    #print('Second rotation of 55 deg...')
+    #DU.rotate_EE_one_axis(fa, deg=55, axis='z', duration=20)
+
+    # If we want to reset back. Careful! Don't do this from the default home.
+    #DU.rotate_EE_one_axis(fa, deg=-90, axis='z')
 
 
 def daniel_testing(fa):
@@ -139,5 +152,5 @@ if __name__ == "__main__":
     print(f'Done creating: {fa}')
 
     #daniel_testing(fa)
-    #ee_rotation_tests(fa)
+    ee_rotation_tests(fa)
     print('Finished with tests.')
