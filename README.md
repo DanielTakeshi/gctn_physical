@@ -14,10 +14,9 @@ python main.py [args]
 
 See that script for more, and `daniel_utils.py` for a bunch of utility methods.
 
-Use `python data_collect.py` to collect demonstration data.
 
-
-- The scripts with `basic` in them are meant for quick testing and proofs of concept.
+See the `scripts/` directory (and the associated README) for testing a bunch of
+things.
 
 
 ## Some random tips from Oliver's students:

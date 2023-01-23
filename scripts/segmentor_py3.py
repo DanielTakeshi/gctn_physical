@@ -1,25 +1,23 @@
-"""Use to get tuned values for segmentation from a GUI. Run in Python 2.
+"""Can we make this work for Python3?
 
-Updated for the cables and Transporters-related experiments. 
-See my Notion for promising values / segmentation examples.
-
-Also I am using some tape to act as markers but I don't necessarily want the
-tape visible.
-
-NOTE: unfortunately I think we have to run a `roslaunch` command first, like
-roslaunching rviz to get this working. So this is not meant to be run with
-the frankapy code we are using. After my `setupf` alias I did:
+After my `setupf` alias I did:
 
 testseita@TheCat:~/github/frankapy$ roslaunch bimanual_ros sensor_kinect_rviz_v01.launch
 
-And then in another tab (again, Python 2), running this script works.
+And then in another tab for this use PYTHON 3. OMG, this works.
+Though strangely the trackbar shows something that seems different,
+I guess Python 2 vs 3 changed things.
+
+References:
+https://github.com/ros-perception/vision_opencv/issues/207
+http://wiki.ros.org/cv_bridge/Tutorials/ConvertingBetweenROSImagesAndOpenCVImagesPython
+https://github.com/eric-wieser/ros_numpy/blob/master/README.md
 """
 import cv2
 import rospy
 import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-from cv_bridge import CvBridge
+import ros_numpy
 from sensor_msgs.msg import Image
 
 
@@ -55,7 +53,6 @@ class Segmenter():
         self.bgr = None
         self.hsv = None
         self.dst = None
-        self.bridge = CvBridge()
         cv2.namedWindow(self.title_window)
 
         if self.use_bgr:
@@ -74,6 +71,9 @@ class Segmenter():
             cv2.createTrackbar('upper val', self.title_window, 255, 255, self.on_upper_v)
 
     def update(self):
+        if self.bgr is None:
+            return
+
         # Keep pixel from 'bgr' image on (white) if the mask is 1 at the pixel.
         if self.use_bgr:
             lower = np.array([self.lower_B, self.lower_G, self.lower_R], dtype='uint8')
@@ -144,8 +144,17 @@ class Segmenter():
     # ============================== Update window ============================== #
 
     def cb(self, msg):
+        """Important! This does not work in Python3:
+
         # In BGR mode. If we do `cv2.imwrite(..., im)` we get 'correct' colors.
         im = self.bridge.imgmsg_to_cv2(msg, 'bgr8')
+
+        Therefore I had to change this to use `ros_numpy.numpify(msg)`. Thankfully
+        this library exists! Empirically it produces an image with 4 channels (so,
+        of shape (_,_,4)) so I just remove the last channel, assuming it's an alpha.
+        """
+        im = ros_numpy.numpify(msg)
+        im = im[:, :, :3].astype(np.uint8)
 
         # Make sure this matches what we are actually using! I'm cropping to 320x160.
         x = 0
@@ -179,9 +188,10 @@ class Segmenter():
 
 
 if __name__ == '__main__':
+    # NOTE(daniel): both '/k4a/rgb/image_raw' and 'k4a/rgb/image_raw' seem to work.
     parser = argparse.ArgumentParser()
     parser.add_argument('--img_topic', help='ROS topic to subscribe to for RGB image',
-        default='k4a/rgb/image_raw')
+        default='/k4a/rgb/image_raw')
     parser.add_argument('--bgr', type=int, help='1 if using BGR, else HSV', default=0)
     args, _ = parser.parse_known_args()
 
