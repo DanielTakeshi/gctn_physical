@@ -5,6 +5,7 @@ https://github.com/IFL-CAMP/easy_handeye
 https://github.com/Wenxuan-Zhou/frankapy_env/blob/main/frankapy_env/pointcloud.py
 https://github.com/DanielTakeshi/mixed-media-physical/blob/main/utils_robot.py
 """
+import cv2
 import time
 import daniel_utils as DU
 import yaml
@@ -12,7 +13,8 @@ import open3d as o3d
 import numpy as np
 from autolab_core import RigidTransform
 from frankapy import FrankaArm
-np.set_printoptions(suppress=True, precision=4, linewidth=150)
+from data_collect import DataCollector
+np.set_printoptions(suppress=True, precision=5, linewidth=150)
 
 # NOTE(daniel): these work without errors.
 import rospy
@@ -54,20 +56,26 @@ JOINTS_GRIP = np.array([-0.4803, -0.503, 0.1917, -2.8445, 0.104, 2.3419, -2.7057
 
 # ---------------------------------------------------------------------------------- #
 # https://github.com/DanielTakeshi/mixed-media-physical/blob/main/config.py
-# Get from `rostopic echo /k4a_top/rgb/camera_info`. These are the _intrinsics_,
-# which are just given to us (we don't need calibration for these).
-# TODO(daniel): how do we get these in our case now? Do we have to do a roslaunch
-# command separately from these?
+# Get from `rostopic echo /k4a/rgb/camera_info`. These are the _intrinsics_,
+# which are just given to us (we don't need calibration for these). We do need
+# a separate roslaunch command, and that directly affects these values.
+#
+# fx  0 x0
+#  0 fy y0
+#  0  0  1
+
 K_matrices = {
+    # From the Sawyer (scooping).
+    #'k4a': np.array([
+    #    [977.870,     0.0, 1022.401],
+    #    [    0.0, 977.865,  780.697],
+    #    [    0.0,     0.0,      1.0]
+    #]),
+    # From the Franka setup (iam-dopey).
     'k4a': np.array([
-        [977.870,     0.0, 1022.401],
-        [    0.0, 977.865,  780.697],
-        [    0.0,     0.0,      1.0]
-    ]),
-    'k4a_top': np.array([
-        [977.005,     0.0, 1020.287],
-        [    0.0, 976.642,  782.864],
-        [    0.0,     0.0,      1.0]
+        [609.096,     0.0, 639.614],
+        [    0.0, 608.888, 365.639],
+        [    0.0,     0.0,     1.0]
     ]),
 }
 # ---------------------------------------------------------------------------------- #
@@ -157,40 +165,28 @@ def msg_to_se3(msg):
     return g
 
 
-def uv_to_world_pos(buffer, u, v, z, camera_ns, debug_print=False):
+def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
     """Transform from image coordinates and depth to world coordinates.
 
     Copied this from my 'mixed media' code, but likely have to change.
+    https://github.com/DanielTakeshi/mixed-media-physical/blob/63ce1b2118d77f3757452540feeabd733fb9a9f4/utils_robot.py#L106
+
+    TODO(daniel): can we keep track of the units carefully?
+    I think the K matrix uses millimeters, and so does the depth camera.
+    But does T_BC need to use millimeters or meters?
 
     Parameters
     ----------
+    T_BC: should transform from camera to world. This was the ordering we had it
+        earlier, we created a `matrix_camera_to_world`.
     u, v: image coordinates
     z: depth value
-    camera_params:
 
     Returns
     -------
     world coordinates at pixels (u,v) and depth z.
     """
-
-    # We name this as T_BC so that we go from camera to base.
-    while not rospy.is_shutdown():
-        try:
-            if camera_ns == "k4a":
-                T_BC = buffer.lookup_transform(
-                        'base', 'rgb_camera_link', rospy.Time(0))
-            elif camera_ns == "k4a_top":
-                T_BC = buffer.lookup_transform(
-                        'base', 'top_rgb_camera_link', rospy.Time(0))
-            #print("Transformation, Camera -> Base:\n{}".format(T_BC))
-            break
-        except (tf2_ros.LookupException,
-                tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException) as e:
-            continue
-
-    # Convert this to a 4x4 homogeneous matrix (borrowed code from ROS answers).
-    matrix_camera_to_world = msg_to_se3(T_BC)
+    matrix_camera_to_world = T_BC.matrix  # TODO check units
 
     # Get 4x4 camera intrinsics matrix.
     K = K_matrices[camera_ns]
@@ -203,11 +199,12 @@ def uv_to_world_pos(buffer, u, v, z, camera_ns, debug_print=False):
     one = np.ones(u.shape)
     x = (v - u0) * z / fx
     y = (u - v0) * z / fy
+
     # If x,y,z came from scalars, makes (1,4) matrix. Need to test for others.
     cam_coords = np.stack([x, y, z, one], axis=1)
+
+    # TODO(daniel): which one?
     #world_coords = matrix_camera_to_world.dot(cam_coords.T)  # (4,4) x (4,1)
-    #print(world_coords)
-    # TODO(daniel) check filter_points, see if this is equivalent.
     world_coords = cam_coords.dot(matrix_camera_to_world.T)
 
     if debug_print:
@@ -223,7 +220,7 @@ def uv_to_world_pos(buffer, u, v, z, camera_ns, debug_print=False):
     return world_coords  # (n,4) but ignore last row
 
 
-def world_to_uv(buffer, world_coordinate, camera_ns, debug_print=False):
+def world_to_uv(T_CB, world_coordinate, camera_ns='k4a', debug_print=False):
     """Transform from world coordinates to image pixels.
 
     Copied this from my 'mixed media' code, but likely have to change.
@@ -238,34 +235,17 @@ def world_to_uv(buffer, world_coordinate, camera_ns, debug_print=False):
 
     Parameters
     ----------
-    buffer: from ROS, so that we can look up camera transformations.
+    T_CB. Transformation from camera to world (what order?).
     world_coordinate: np.array, shape (n x 3), specifying world coordinates, i.e.,
         we might get from querying the tool EE Position.
+
     Returns
     -------
     (u,v): specifies (x,y) coords, `u` and `v` are each np.arrays, shape (n,).
         To use it directly with a numpy array such as img[uv], we might have to
         transpose it. Unfortunately I always get confused about the right way.
     """
-
-    # We name this as T_CB so that we go from base to camera.
-    while not rospy.is_shutdown():
-        try:
-            if camera_ns == "k4a":
-                T_CB = buffer.lookup_transform(
-                        'rgb_camera_link', 'base', rospy.Time(0))
-            elif camera_ns == "k4a_top":
-                T_CB = buffer.lookup_transform(
-                        'top_rgb_camera_link', 'base', rospy.Time(0))
-            #print("Transformation, Base -> Camera:\n{}".format(T_CB))
-            break
-        except (tf2_ros.LookupException,
-                tf2_ros.ConnectivityException,
-                tf2_ros.ExtrapolationException) as e:
-            continue
-
-    # Convert this to a 4x4 homogeneous matrix (borrowed code from ROS answers).
-    matrix_world_to_camera = msg_to_se3(T_CB)
+    matrix_world_to_camera = T_CB.matrix  # TODO check units
 
     # NOTE(daniel) rest of this is from SoftGym, minus how we get the K matrix.
     world_coordinate = np.concatenate(
@@ -318,12 +298,112 @@ def load_transformation(filename):
     return transformation
 
 
-def camera_stuff():
-    """How do we make use of a camera?
+def test_camera_to_world():
+    """Test going from camera pixels to world coordinates."""
+    raise NotImplementedError()
+
+
+def test_world_to_camera():
+    """Test going from world coordinates to camera pixels."""
+    # TODO(daniel): another exmpale for me to test
+    # Camera images. Make sure the roslaunch file 'activates' the camera nodes.
+    cimg1, dimg1 = robot.capture_image(args.data_dir, camera_ns='k4a',     filename='k4a')
+    cimg2, dimg2 = robot.capture_image(args.data_dir, camera_ns='k4a_top', filename='k4a_top')
+
+    # Get the robot EE position (w.r.t. world) and get the pixels.
+    ee_pose = robot.get_ee_pose()
+    ee_posi = ee_pose[:3]
+    print('Current EE position: {}'.format(ee_posi))
+
+    # Use the top camera, make Nx3 matrix with world coordinates to be converted to camera.
+    points_world = np.array([
+        [0.0, 0.0, 0.0],  # base of robot (i.e., this is the world center origin)
+        [0.1, 0.0, 0.0],  # more in x direction
+        [0.2, 0.0, 0.0],  # more in x direction
+        [0.3, 0.0, 0.0],  # more in x direction
+        [0.4, 0.0, 0.0],  # more in x direction
+        [0.5, 0.0, 0.0],  # more in x direction
+        [0.6, 0.0, 0.0],  # more in x direction
+        [0.7, 0.0, 0.0],  # more in x direction
+        [0.8, 0.0, 0.0],  # more in x direction
+        [0.9, 0.0, 0.0],  # more in x direction
+        [1.0, 0.0, 0.0],  # more in x direction
+
+        [0.5, -0.6, 0.0],  # check y
+        [0.5, -0.5, 0.0],  # check y
+        [0.5, -0.4, 0.0],  # check y
+        [0.5, -0.3, 0.0],  # check y
+        [0.5, -0.2, 0.0],  # check y
+        [0.5, -0.1, 0.0],  # check y
+        [0.5,  0.1, 0.0],  # check y
+        [0.5,  0.2, 0.0],  # check y
+        [0.5,  0.3, 0.0],  # check y
+
+        [0.6, -0.1, 0.0],  # check z
+        [0.6, -0.1, 0.1],  # check z
+        [0.6, -0.1, 0.2],  # check z
+        [0.6, -0.1, 0.3],  # check z
+        [0.6, -0.2, 0.0],  # check z
+        [0.6, -0.2, 0.1],  # check z
+        [0.6, -0.2, 0.2],  # check z
+        [0.6, -0.2, 0.3],  # check z
+        [0.6, -0.3, 0.0],  # check z
+        [0.6, -0.3, 0.1],  # check z
+        [0.6, -0.3, 0.2],  # check z
+        [0.6, -0.3, 0.3],  # check z
+        [0.6, -0.4, 0.0],  # check z
+        [0.6, -0.4, 0.1],  # check z
+        [0.6, -0.4, 0.2],  # check z
+        [0.6, -0.4, 0.3],  # check z
+        [0.6, -0.5, 0.0],  # check z
+        [0.6, -0.5, 0.1],  # check z
+        [0.6, -0.5, 0.2],  # check z
+        [0.6, -0.5, 0.3],  # check z
+        [0.6, -0.6, 0.0],  # check z
+        [0.6, -0.6, 0.1],  # check z
+        [0.6, -0.6, 0.2],  # check z
+        [0.6, -0.6, 0.3],  # check z
+
+        [0.667, -0.374, 0.662],  # center of the camera (actually not visible)
+    ])
+
+    # Convert to pixels for 'k4a_top'!
+    uu,vv = world_to_uv(buffer=robot.buffer,
+                        world_coordinate=points_world,
+                        camera_ns='k4a_top')
+
+    # Now write over the image. For cv2 we need to reverse (u,v), right?
+    # Actually for some reason we don't have to do that ...
+    cimg = cimg2.copy()
+    for i in range(points_world.shape[0]):
+        p_w = points_world[i]
+        u, v = uu[i], vv[i]
+        print('World: {}  --> Pixels {} {}'.format(p_w, u, v))
+        if i < 11:
+            color = (0,255,255)
+        elif i < 20:
+            color = (255,0,0)
+        else:
+            color = (0,0,255)
+        cv2.circle(cimg, center=(u,v), radius=10, color=color, thickness=-1)
+
+    # Compare original vs new. The overlaid points visualize world coordinates.
+    print('See image, size {}'.format(cimg.shape))
+    cv2.imwrite('original_annotate.png', img=cimg2)
+    cv2.imwrite('original.png', img=cimg)
+
+
+def test_camera():
+    """Main idea of how this works:
 
     Do we need two poses, for (base,EE) and (EE,camera)? Then we combine them?
     I think the former is `fa.get_pose()` and the latter is from calibration.
+    Be careful with units. I think everything is in millimeters?
+
+    We need accurate calibration.
     """
+    dc = DataCollector()
+    print('Started the data collector!')
 
     # The calibration file; copy it from `/<HOME>/.ros/easy_handeye`.
     # I think this gives transformation from EE to camera?
@@ -363,30 +443,45 @@ def camera_stuff():
     # with a different pose which more closely matches the tool pose?
     T_cam_world = T_ee_world * T_cam_ee
     print(f'T_cam_world:\n{T_cam_world}\n')
+    T_cam_world.translation *= 1000.0
+    print(f'T_cam_world with millimeter units?:\n{T_cam_world}\n')
 
-    ## OK now let's see if we can get the image. Nope, not working.
-    ## I think we have to use another setting.
-    ## NOTE(daniel): I had to install this. Not sure why VSCode complains.
-    #from perception_utils.kinect import KinectSensorBridged
-    #print('Creating KinectSensorBridged...')
-    #ks = KinectSensorBridged()
-    #print('starting KinectSensorBridged...')
-    #ks.start()
-    #print('Done starting...')
+    # OK now let's see if we can get the image using the data collector.
+    time.sleep(0.1)
+    cimg = dc.get_color_image()
+    dimg = dc.get_depth_image()
+    dimg_proc = dc.get_depth_image_proc()
+    assert cimg is not None
+    assert dimg is not None
+    assert dimg_proc is not None
+    assert cimg.shape == dimg_proc.shape, f'{cimg.shape}, {dimg_proc.shape}'
 
-    # TODO
+    # Find pixels we want to use. Also annotate them. Careful, if we pick pixels
+    # by the boundary we might end up with something that has zeros.
+    u = np.array([400]).astype(np.int64)
+    v = np.array([400]).astype(np.int64)
+    z = dimg[u, v]
+    print(f'At (u,v), depth:\nu={u}\nv={v})\ndepth={z}')
+    cv2.circle(
+        img=dimg_proc,
+        center=(v[0],u[0]),
+        radius=3,
+        color=(0,255,0),
+        thickness=3
+    )
+    cv2.imwrite('dimg_coord.png', dimg_proc)
 
-    # Find pixels we want to use.
-    # TODO
+    # Using T_cam_world, and camera info, should convert them to world points.
+    pos_world  = uv_to_world_pos(T_cam_world, u, v, z, debug_print=False)
+    print(f'pos_world: {pos_world}')  # TODO in what units?
+    print(f'div by 1000: {pos_world / 1000.}')  # TODO in what units?
 
-    # Using T_cam_world, and camera info, should convert them to EE poses.
-    # TODO
-
-    # Then go to the pose? Can do pick-and-place later.
+    # Later, have EE go to those positions. Can do pick and place later.
     # TODO
     time.sleep(3)
 
+    print('Finished with tests.')
+
 
 if __name__ == "__main__":
-    camera_stuff()
-    print('Finished with tests.')
+    test_camera()

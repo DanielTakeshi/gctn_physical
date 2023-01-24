@@ -114,9 +114,6 @@ class DataCollector:
         self.area_mask = None
         self.area_mask_l = []
 
-        # Not sure if we need this
-        rospy.init_node('data_collector', anonymous=True)
-
         # "Depth to RGB". Don't do RGB to Depth, produces lots of empty space.
         # TODO(daniel) I don't have image_rect_color, I only have image_raw?
         # Is there a difference between image_raw and image_rect_color?
