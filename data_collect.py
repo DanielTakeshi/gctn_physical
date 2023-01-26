@@ -195,7 +195,12 @@ class DataCollector:
 
     def get_images(self):
         """Helps to clarify which images mean what."""
-        raise NotImplementedError
+        images = dict(
+            color_raw=self.c_image,
+            depth_raw=self.d_image,
+            depth_proc=self.d_image_proc,
+        )
+        return images
 
 
 if __name__ == "__main__":

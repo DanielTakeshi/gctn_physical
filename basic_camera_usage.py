@@ -4,6 +4,9 @@ Testing the camera stuff. References:
 https://github.com/IFL-CAMP/easy_handeye
 https://github.com/Wenxuan-Zhou/frankapy_env/blob/main/frankapy_env/pointcloud.py
 https://github.com/DanielTakeshi/mixed-media-physical/blob/main/utils_robot.py
+
+Also remember OpenCV conventions.
+https://www.notion.so/Progress-Report-Internal-5e92796ab6a94e66a70a6a77d2bbc4b6
 """
 import cv2
 import time
@@ -447,9 +450,10 @@ def test_camera():
 
     # Get the aligned color and depth images.
     time.sleep(0.1)
-    cimg = dc.get_color_image()
-    dimg = dc.get_depth_image()
-    dimg_proc = dc.get_depth_image_proc()
+    img_dict = dc.get_images()
+    cimg = img_dict['color_raw']
+    dimg = img_dict['depth_raw']
+    dimg_proc = img_dict['depth_proc']
     assert cimg is not None
     assert dimg is not None
     assert dimg_proc is not None
@@ -458,24 +462,23 @@ def test_camera():
     cv2.imwrite('dimg.png', dimg_proc)
 
     # Find pixels we want to use. Also annotate them. Careful, if we pick pixels
-    # by the boundary we might end up with something that has zeros.
-    u = np.array([400]).astype(np.int64)
-    v = np.array([400]).astype(np.int64)
+    # by the boundary we might end up with something that has zeros. Increasing
+    # value of v means moving in the negative y direction wrt the robot base.
+    u = np.array([400, 400, 400]).astype(np.int64)
+    v = np.array([400, 600, 800]).astype(np.int64)
     z = dimg[u, v]
     print(f'At (u,v), depth:\nu={u}\nv={v})\ndepth={z}')
-    cv2.circle(
-        img=dimg_proc,
-        center=(v[0],u[0]),
-        radius=3,
-        color=(0,255,0),
-        thickness=3
-    )
+
+    # As usual for plotting, swap u and v.
+    cv2.circle(dimg_proc, center=(v[0],u[0]), radius=3, color=(255,0,0), thickness=3)
+    cv2.circle(dimg_proc, center=(v[1],u[1]), radius=3, color=(0,255,0), thickness=3)
+    cv2.circle(dimg_proc, center=(v[2],u[2]), radius=3, color=(255,255,255), thickness=3)
     cv2.imwrite('dimg_coord.png', dimg_proc)
 
     # Using T_cam_world, and camera info, should convert them to world points.
     pos_world  = uv_to_world_pos(T_cam_world, u, v, z, debug_print=False)
-    print(f'pos_world: {pos_world}')  # TODO in what units?
-    print(f'div by 1000: {pos_world / 1000.}')  # TODO in what units?
+    print(f'\npos_world (mm):\n{pos_world}')
+    print(f'div by 1000 (m):\n{pos_world / 1000.}')
 
     # Later, have EE go to those positions. Can do pick and place later.
     # TODO
