@@ -398,16 +398,17 @@ def test_camera():
 
     Do we need two poses, for (base,EE) and (EE,camera)? Then we combine them?
     I think the former is `fa.get_pose()` and the latter is from calibration.
-    Be careful with units. I think everything is in millimeters?
+    Be careful with units. Calibration yaml files and the transformations there
+    are in meters, along with `fa.get_pose()` transformations.
 
-    We need accurate calibration.
+    But I think the camera information matrix puts units in millimeters.
     """
     dc = DataCollector()
     print('Started the data collector!')
 
-    # The calibration file; copy it from `/<HOME>/.ros/easy_handeye`.
+    # The calibration file, copied from `/<HOME>/.ros/easy_handeye`.
     # I think this gives transformation from EE to camera?
-    filename = 'cfg/easy_handeye_eye_on_hand.yaml'
+    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v02.yaml'
     T = load_transformation(filename)
     print(f'Loaded transformation from {filename}:\n{T}\n')
 
@@ -418,17 +419,17 @@ def test_camera():
     T_ee_world = fa.get_pose()
     print(f'T_ee_world:\n{T_ee_world}\n')
 
-    # Wait, we might not want the tool offset since the calibration we did does NOT
-    # consider that. Unfortunately this seems to be the same as earlier since I
-    # don't think we have set it anywhere?
-    T_ee_world_nooff = fa.get_pose(include_tool_offset=False)
-    print(f'T_ee_world_nooff:\n{T_ee_world_nooff}\n')
+    # # Wait, we might not want the tool offset since the calibration we did does NOT
+    # # consider that. Unfortunately this seems to be the same as earlier since I
+    # # don't think we have set it anywhere?
+    # T_ee_world_nooff = fa.get_pose(include_tool_offset=False)
+    # print(f'T_ee_world_nooff:\n{T_ee_world_nooff}\n')
 
-    # This is the identity matrix...
-    T_toolbasepose = fa.get_tool_base_pose()
-    print(f'fa.get_tool_base_pose():\n{T_toolbasepose}\n')
+    # # This is the identity matrix & translation, so definitely the 'origin'.
+    # T_toolbasepose = fa.get_tool_base_pose()
+    # print(f'fa.get_tool_base_pose():\n{T_toolbasepose}\n')
 
-    # Combine the transformations? Trying to do this following examples/move_robot.py
+    # Combine the transformations? Trying to follow `examples/move_robot.py`
     # and from the debugging that RigidTransform provides.
     T_cam_ee = RigidTransform(
         rotation=T[:3, :3],
@@ -438,15 +439,13 @@ def test_camera():
     )
     print(f'T_cam_ee:\n{T_cam_ee}\n')
 
-    # This is _almost_ there! But I think there is something missing with the
-    # tool offset that's causing the issue. OR Maybe I can re-run calibration but
-    # with a different pose which more closely matches the tool pose?
+    # I _think_ this seems OK? It passes my sanity checks.
     T_cam_world = T_ee_world * T_cam_ee
     print(f'T_cam_world:\n{T_cam_world}\n')
     T_cam_world.translation *= 1000.0
     print(f'T_cam_world with millimeter units?:\n{T_cam_world}\n')
 
-    # OK now let's see if we can get the image using the data collector.
+    # Get the aligned color and depth images.
     time.sleep(0.1)
     cimg = dc.get_color_image()
     dimg = dc.get_depth_image()
@@ -455,6 +454,8 @@ def test_camera():
     assert dimg is not None
     assert dimg_proc is not None
     assert cimg.shape == dimg_proc.shape, f'{cimg.shape}, {dimg_proc.shape}'
+    cv2.imwrite('cimg.png', cimg)
+    cv2.imwrite('dimg.png', dimg_proc)
 
     # Find pixels we want to use. Also annotate them. Careful, if we pick pixels
     # by the boundary we might end up with something that has zeros.
@@ -478,7 +479,7 @@ def test_camera():
 
     # Later, have EE go to those positions. Can do pick and place later.
     # TODO
-    time.sleep(3)
+    time.sleep(1)
 
     print('Finished with tests.')
 

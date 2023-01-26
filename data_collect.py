@@ -52,113 +52,71 @@ from sensor_msgs.msg import Image
 SAVEDIR = 'images/'
 
 
-# For cropping images.
-CROP_X = 840
-CROP_Y = 450
-CROP_W = 300
-CROP_H = 300
-
-
 class DataCollector:
 
-    def __init__(self):
+    def __init__(self, init_node=False, rosnode_name='DataCollector'):
+        """Collects images from the ROS topics for the Azure Kinect camera.
+
+        Set init_node=True if running this as a stand-alone script.
+        In other cases (e.g., if we call from frankapy code), it should be false.
+        """
         self.timestep = 0
         self.record_img = False
-        self.record_pcl = False
         self.debug_print = False
 
         # Store color and depth images.
         self.c_image = None
+        self.c_image_bbox = None
         self.c_image_proc = None
-        self.c_image_l = []
-        self.c_image_proc_l = []
         self.d_image = None
         self.d_image_proc = None
-        self.d_image_l = []
-        self.d_image_proc_l = []
+        self.c_recorded = 0
+        self.d_recorded = 0
+        self.mask_im = None
 
-        # Point clouds (segmented, subsampled)? FlowBot3D used 1200, Dough used 1000.
-        self.max_pts = 5000
-        self.pcl = None
-        self.pcl_l = []
+        # For cropping images to (w,h) BEFORE resizing to (160,320).
+        self.crop_x = 0 + 140
+        self.crop_y = 0 + 110
+        self.crop_w = 1280 - (2*140)
+        self.crop_h =  720 - (2*110)
+        self.width  = 320
+        self.height = 160
 
-        # Storing other info. Here, `_b` means w.r.t. the 'base'.
-        self.ee_poses_b = []
-        self.tool_poses_b = []
+        # Get masked images. See 'segmentor.py' scripts.
+        self.mask_lo = np.array([ 90,  35,   0], dtype='uint8')
+        self.mask_up = np.array([255, 255, 255], dtype='uint8')
+        self.mask_im = None
 
-        ## For cropped images. The w,h indicate width,height of cropped images.
-        self.crop_x = CROP_X
-        self.crop_y = CROP_Y
-        self.crop_w = CROP_W
-        self.crop_h = CROP_H
-
-        # Segment the items. If using color, in BGR mode (not RGB) but HSV seems
-        # better. See segmentory.py for more details.
-        self.targ_lo = np.array([ 15,  70, 170], dtype='uint8')
-        self.targ_up = np.array([ 60, 255, 255], dtype='uint8')
-        self.targ_mask = None
-        self.targ_mask_l = []
-
-        self.dist_lo = np.array([ 70,  70,  70], dtype='uint8')
-        self.dist_up = np.array([155, 230, 255], dtype='uint8')
-        self.dist_mask = None
-        self.dist_mask_l = []
-
-        self.tool_lo = np.array([  0,   0,   0], dtype='uint8')
-        self.tool_up = np.array([255, 255,  45], dtype='uint8')
-        self.tool_mask = None
-        self.tool_mask_l = []
-
-        self.area_lo = np.array([  0,  70,   0], dtype='uint8')
-        self.area_up = np.array([255, 255, 255], dtype='uint8')
-        self.area_mask = None
-        self.area_mask_l = []
+        if init_node:
+            rospy.init_node(rosnode_name, anonymous=True)
 
         # "Depth to RGB". Don't do RGB to Depth, produces lots of empty space.
-        # TODO(daniel) I don't have image_rect_color, I only have image_raw?
-        # Is there a difference between image_raw and image_rect_color?
-        # It must be because of my launch file, look at what I launched.
+        # TODO(daniel) can double check these topics but they seem OK to me.
         rospy.Subscriber('/k4a/rgb/image_raw',
-                Image, self.color_image_callback, queue_size=1)
+                Image, self.color_cb, queue_size=1)
         rospy.Subscriber('/k4a/depth_to_rgb/image_raw',
-                Image, self.depth_image_callback, queue_size=1)
+                Image, self.depth_cb, queue_size=1)
 
-    def color_image_callback(self, msg):
-        """If `self.record`, then this saves the color images.
+    def color_cb(self, msg):
+        """Callback for the color images.
 
-        Also amazingly, just calling the same ee pose code seems to work?
-        Careful, this might decrease the rate that images get called, we don't
-        want much computation here. Profile it?
-
-        From trying both 'rgb8' and 'bgr8', and saving with `cv2.imwrite(...)`, the
-        'bgr8' mode seems to preserve colors as we see it.
+        From trying both 'rgb8' and 'bgr8', the 'bgr8' mode seems to be OK.
         """
         if rospy.is_shutdown():
             return
 
+        # Make this change to get it working in Python3.
         #self.c_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         im = ros_numpy.numpify(msg)
         self.c_image = im[:, :, :3].astype(np.uint8)
-        self.c_image_proc = self._process_color(self.c_image)
+        self.c_image_bbox = self._process_color(self.c_image, bbox=True)
+        self.c_image_crop = self._process_color(self.c_image, bbox=False)
 
-        # Segment the target(s) and distractor(s).
-        self.hsv = cv2.cvtColor(self.c_image_proc, cv2.COLOR_BGR2HSV)
-        self.targ_mask = cv2.inRange(self.hsv, self.targ_lo, self.targ_up)
-        self.dist_mask = cv2.inRange(self.hsv, self.dist_lo, self.dist_up)
-        self.tool_mask = cv2.inRange(self.hsv, self.tool_lo, self.tool_up)
-        self.area_mask = cv2.inRange(self.hsv, self.area_lo, self.area_up)
+        # Segment the cable, using c_image_crop (we might re-name...).
+        self.hsv = cv2.cvtColor(self.c_image_crop, cv2.COLOR_BGR2HSV)
+        self.mask_im = cv2.inRange(self.hsv, self.mask_lo, self.mask_up)
 
-        if self.record_img:
-            if self.debug_print:
-                rospy.loginfo('New color image, total: {}'.format(len(self.c_image_l)))
-            self.c_image_l.append(self.c_image)
-            self.c_image_proc_l.append(self.c_image_proc)
-            #self.targ_mask_l.append(self.targ_mask)
-            #self.dist_mask_l.append(self.dist_mask)
-            #self.tool_mask_l.append(self.tool_mask)
-            #self.area_mask_l.append(self.area_mask)
-
-    def depth_image_callback(self, msg):
+    def depth_cb(self, msg):
         """Callback for the depth image.
 
         We use a ROS topic that makes the depth image into the same coordinate space
@@ -170,16 +128,11 @@ class DataCollector:
         if rospy.is_shutdown():
             return
 
+        # Make this change to get it working in Python3.
         #self.d_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
         self.d_image = ros_numpy.numpify(msg).astype(np.float32)
-        self.d_image_proc = self._process_depth(self.d_image)  # not cropped
-
-        if self.record_img:
-            # Record the depth image. Not sure if we need the processed one?
-            if self.debug_print:
-                rospy.loginfo('New depth image, total: {}'.format(len(self.d_image_l)))
-            self.d_image_l.append(self.d_image)
-            self.d_image_proc_l.append(self.d_image_proc)
+        self.d_image_proc = DU.process_depth(self.d_image)  # not cropped
+        self.d_image_proc_crop = self._process_depth(self.d_image)  # cropped
 
     def start_recording(self):
         self.record_img = True
@@ -187,36 +140,35 @@ class DataCollector:
     def stop_recording(self):
         self.record_img = False
 
-    def get_color_image(self):
-        return self.c_image
+    def _process_color(self, cimg, bbox=False):
+        """Process the color image. Don't make this too computationally heavy.
 
-    def get_color_images(self):
-        return self.c_image_l
-
-    def get_depth_image(self):
-        return self.d_image
-
-    def get_depth_image_proc(self):
-        return self.d_image_proc
-
-    def get_depth_images(self):
-        return self.d_image_l
-
-    def get_ee_poses(self):
-        return self.ee_poses_b
-
-    def get_tool_poses(self):
-        return self.tool_poses_b
-
-    def _process_color(self, cimg):
-        """Process the color image. Don't make this too computationally heavy."""
-        cimg_crop = self.crop_img(cimg,
-            x=self.crop_x, y=self.crop_y, w=self.crop_w, h=self.crop_h)
-        return cimg_crop
+        RGB shape is (720, 1280, 4) so decrease the 720 so it uses 640 pixels. Then
+        resize (640, 1280) to (160, 320) which is what I used for Transporters.
+        Edit: this is up to debate, we might want to crop more, this will reduce
+        perspective image artifacts I think, and make cables appear 'bigger'.
+        """
+        if bbox:
+            cimg = self.put_bbox_on_img(
+                cimg, x=self.crop_x, y=self.crop_y, w=self.crop_w, h=self.crop_h
+            )
+        else:
+            cimg_crop = self.crop_img(
+                cimg, x=self.crop_x, y=self.crop_y, w=self.crop_w, h=self.crop_h
+            )
+            cimg = cv2.resize(cimg_crop, (self.width, self.height))
+        return cimg
 
     def _process_depth(self, dimg):
-        """Process the depth image. Don't make this too computationally heavy."""
-        return DU.process_depth(dimg)
+        """Process the depth image. Don't make this too computationally heavy.
+
+        If cropping before processing, follow the same procedure for color images.
+        """
+        dimg_crop = self.crop_img(
+            dimg, x=self.crop_x, y=self.crop_y, w=self.crop_w, h=self.crop_h
+        )
+        dimg_crop = DU.process_depth(dimg_crop)
+        dimg = cv2.resize(dimg_crop, (self.width, self.height))
         return dimg
 
     def put_bbox_on_img(self, img, x, y, w, h):
@@ -234,14 +186,23 @@ class DataCollector:
         return new_img
 
     def crop_img(self, img, x, y, w, h):
-        """Crop the image. See documentation for bounding box."""
+        """Crop the image. See documentation for bounding box.
+
+        The y and x are the starting points for cropping.
+        """
         new_img = img[y:y+h, x:x+w]
         return new_img
 
+    def get_images(self):
+        """Helps to clarify which images mean what."""
+        raise NotImplementedError
+
 
 if __name__ == "__main__":
-    dc = DataCollector()
+    # Create DC, wait a few seconds for it to start.
+    dc = DataCollector(init_node=True)
     print('Created the Data Collector!')
+    time.sleep(2)
 
     if not os.path.exists(SAVEDIR):
         os.mkdir(SAVEDIR)
@@ -250,11 +211,20 @@ if __name__ == "__main__":
     for t in range(5):
         time.sleep(1)
         print('\nTime t={}'.format(t))
+        tt = str(t).zfill(3)
+
         if dc.c_image is not None:
-            print('DC image (rgb):\n{}'.format(dc.c_image.shape))
-            fname = join(SAVEDIR, f'img_{str(t).zfill(3)}_color.png')
+            print('DC image (color):\n{}'.format(dc.c_image.shape))
+            fname = join(SAVEDIR, f'img_{tt}_color.png')
             cv2.imwrite(fname, dc.c_image)
+            fname = join(SAVEDIR, f'img_{tt}_color_bbox.png')
+            cv2.imwrite(fname, dc.c_image_bbox)
+            fname = join(SAVEDIR, f'img_{tt}_color_crop.png')
+            cv2.imwrite(fname, dc.c_image_crop)
+
         if dc.d_image is not None:
             print('DC image (depth):\n{}'.format(dc.d_image.shape))
-            fname = join(SAVEDIR, f'img_{str(t).zfill(3)}_depthproc.png')
+            fname = join(SAVEDIR, f'img_{tt}_depth_proc.png')
             cv2.imwrite(fname, dc.d_image_proc)
+            fname = join(SAVEDIR, f'img_{tt}_depth_crop.png')
+            cv2.imwrite(fname, dc.d_image_proc_crop)
