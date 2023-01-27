@@ -72,12 +72,12 @@ def ee_rotation_tests(fa):
 
     # Adjust robot positions. Note: careful, this WILL rotate the EE to default.
     #fa.goto_joints(JOINTS_HOME, use_impedance=False)
-    fa.goto_joints(JOINTS_GRIP, duration=20, use_impedance=False)
+    #fa.goto_joints(JOINTS_GRIP, duration=20, use_impedance=False)
 
     # Test rotations. Unfortunately, seems like -10 is all we can get in one direction.
     # But I think we can go about +145 in the other direction.
     #DU.rotate_EE_one_axis(fa, deg=-10, axis='z')
-    #DU.rotate_EE_one_axis(fa, deg=120, axis='z', duration=20)
+    DU.rotate_EE_one_axis(fa, deg=90, axis='z', duration=20)
 
     # This stopped at the second rotation. :(
     #print('First rotation of 55 deg...')
@@ -93,20 +93,23 @@ def daniel_testing(fa):
     T_ee_world = fa.get_pose()
     print('Translation: {} | Rotation: {}'.format(T_ee_world.translation, T_ee_world.quaternion))
 
-    # Get joint information
-    joints = fa.get_joints()
-    print('Joints: {}'.format(joints))
+    # # Get joint information
+    # joints = fa.get_joints()
+    # print('Joints: {}'.format(joints))
 
-    # Get EE information
-    gripper_width = fa.get_gripper_width()
-    print('Gripper width: {:0.6f}'.format(gripper_width))
+    # # Get EE information
+    # gripper_width = fa.get_gripper_width()
+    # print('Gripper width: {:0.6f}'.format(gripper_width))
 
     # End-effector pose control (for translation).
     if False:
         print('Translating now with EE pose control.')
         T_ee_world = fa.get_pose()
-        T_ee_world.translation += [0., 0.0, -0.05]
-        fa.goto_pose(T_ee_world, use_impedance=False)
+        T_ee_world.translation -= [0., 0.0, 0.10]
+        fa.goto_pose(T_ee_world, use_impedance=True)
+        T_ee_world = fa.get_pose()
+        print('Translation: {} | Rotation: {}'.format(
+                T_ee_world.translation, T_ee_world.quaternion))
 
     # Test EE rotations, by `deg`, then returning back. For all 3 axes.
     if False:

@@ -54,14 +54,16 @@ def process_depth(orig_img, cutoff=2000):
     return img
 
 
-def rotate_EE_one_axis(fa, deg, axis, use_impedance=False, duration=12):
+def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
     """Just do one EE axis rotation.
 
     Empirically, seems like abs(deg) has to be at least 4 to observe any
     notable robot movement. Also, I'd increase the duration from the
     default of 3.
 
-    Default duration
+    We should use impedance True as default.
+
+    Default duration is set to be a bit long just in case.
     """
     assert np.abs(deg) <= 145., f'deg: {deg}, careful that is a lot...'
     print(f'Rotation in EE frame by {deg} deg, axis: {axis}.')

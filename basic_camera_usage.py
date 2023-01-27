@@ -476,9 +476,10 @@ def test_camera():
     cv2.imwrite('dimg_coord.png', dimg_proc)
 
     # Using T_cam_world, and camera info, should convert them to world points.
-    pos_world  = uv_to_world_pos(T_cam_world, u, v, z, debug_print=False)
-    print(f'\npos_world (mm):\n{pos_world}')
-    print(f'div by 1000 (m):\n{pos_world / 1000.}')
+    pos_world_mm = uv_to_world_pos(T_cam_world, u, v, z, debug_print=False)
+    pos_world_meter = pos_world_mm / 1000.
+    print(f'\npos_world (mm):\n{pos_world_mm}')
+    print(f'div by 1000 (m):\n{pos_world_meter}')
 
     # Later, have EE go to those positions. Can do pick and place later.
     # TODO
