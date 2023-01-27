@@ -93,12 +93,29 @@ def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
     )
 
 
-def pick_and_place(pix0, pix1, img_c, img_g, z_delta):
+def pick_only(fa, pix0, img_c, z_delta):
+    """A pick primitive to test things.
+
+    Take note of the ordering in pix0 and pix1.
+    This should also probably determine the rotation angles.
+
+    fa: FrankaArm
+    pix0: tuple of picking pixels.
+    img_c: current image (assume a binary mask).
+    z_delta: delta of height for picking and placing.
+    """
+    assert z_delta > 0, z_delta
+
+    raise NotImplementedError
+
+
+def pick_and_place(fa, pix0, pix1, img_c, img_g, z_delta):
     """Our pick and place action primitive.
 
     Take note of the ordering in pix0 and pix1.
     This should also probably determine the rotation angles.
 
+    fa: FrankaArm
     pix0: tuple of picking pixels.
     pix1: tuple of placing pixels.
     img_c: current image (assume a binary mask).
