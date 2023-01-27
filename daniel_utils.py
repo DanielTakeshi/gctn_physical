@@ -3,9 +3,29 @@
 This is meant to be imported in our `main.py` script which runs experiments.
 """
 import cv2
+import sys
 import numpy as np
 from autolab_core import RigidTransform
 np.set_printoptions(suppress=True, precision=4, linewidth=150)
+
+
+def get_rigid_transform_from_7D(nparr):
+    """Convenience in case we want to go to 7D poses (translation,quaternion)."""
+    assert len(nparr) == 7, nparr
+    T_target = RigidTransform(
+        translation=nparr[:3],
+        rotation=RigidTransform.rotation_from_quaternion(q_wxyz=nparr[3:]),
+        from_frame='franka_tool',
+        to_frame='world',
+    )
+    return T_target
+
+
+def wait_for_enter():
+    if sys.version_info[0] < 3:
+        raw_input('Press Enter to continue:')
+    else:
+        input('Press Enter to continue:')
 
 
 def triplicate(img, to_int=False):

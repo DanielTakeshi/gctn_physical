@@ -133,24 +133,66 @@ def finetune_pose(fa):
 
     #T_ee_world.translation += [0., -0.015, -0.0]
     #T_ee_world.translation += [0., -0.0, -0.010]
-    #T_ee_world.translation += [-0.015, -0.0, -0.0]
-    #fa.goto_pose(T_ee_world, use_impedance=True)
+    #T_ee_world.translation += [-0.05, -0.0, -0.0]
+    #fa.goto_pose(T_ee_world, use_impedance=True, duration=5)
     return
 
 
-def goto_start_pose(fa):
-    """Go to the starting pose obtained from `finetune_pose()`."""
+def test_waypoint_sequence(fa):
+    """Go to a sequence of waypoints to test intermediate grasp poses.
+
+    See daniel_config for details. Reason why I need to do this is that it
+    might be more precise if we have shorter length movements to get back to
+    the top pose (for which I want to get an accurate and consistent pose).
+    Also sometimes I get errors with EE control if I move too much.
+
+    But for moving joints, I get this error:
+    ValueError: Target joints in collision with virtual walls!
+    """
     T_ee_world = fa.get_pose()
     joints = fa.get_joints()
-    print('Translation: {} | Rotation: {}'.format(
+    print('Current Translation: {} | Rotation: {}'.format(
             T_ee_world.translation, T_ee_world.quaternion))
-    print('Joints: {}'.format(joints))
+    print('Current Joints: {}'.format(joints))
 
-    # Go to a pre-designated home pose. I think this should work.
-    T_ee_world.translation = DC.EE_HOME[:3]
-    T_ee_world.quaternion = DC.EE_HOME[3:]
-    print(f'Move to joints: {DC.EE_HOME}')
-    fa.goto_pose(T_ee_world, use_impedance=True, duration=10)
+    # Go to top. NOTE(daniel): duration should be distance-dependent!!
+    # Also note, likely need to use joint movement if we're far from this.
+    T_target = DU.get_rigid_transform_from_7D(DC.EE_TOP)
+    print(f'\nMove to EE pose:\n{T_target}')
+    DU.wait_for_enter()
+    fa.goto_pose(T_target, use_impedance=True, duration=4)
+    #fa.goto_joints(DC.JOINTS_TOP, duration=4)  # virtual wall collision
+
+    # Go to (first) waypoint.
+    T_target = DU.get_rigid_transform_from_7D(DC.EE_WP1)
+    print(f'\nMove to EE pose:\n{T_target}')
+    DU.wait_for_enter()
+    fa.goto_joints(DC.JOINTS_WP1, duration=5)
+
+    # Go to (second) waypoint.
+    T_target = DU.get_rigid_transform_from_7D(DC.EE_WP2)
+    print(f'\nMove to EE pose:\n{T_target}')
+    DU.wait_for_enter()
+    fa.goto_joints(DC.JOINTS_WP2, duration=12)
+
+    # Go to grasping point to start pick and place.
+    # NOTE(daniel): will be done later in scripts.
+
+    # Return to (second) waypoint. Should rotate back as well.
+    # NOTE(daniel): not needed now since we didn't move the robot.
+
+    # Return to (first) waypoint.
+    T_target = DU.get_rigid_transform_from_7D(DC.EE_WP1)
+    print(f'\nMove to EE pose:\n{T_target}')
+    DU.wait_for_enter()
+    fa.goto_joints(DC.JOINTS_WP1, duration=12)
+
+    # Return to top.
+    T_target = DU.get_rigid_transform_from_7D(DC.EE_TOP)
+    print(f'\nMove to EE pose:\n{T_target}')
+    DU.wait_for_enter()
+    fa.goto_pose(T_target, use_impedance=True, duration=4)
+    #fa.goto_joints(DC.JOINTS_TOP, duration=4)  # virtual wall collision
 
 
 if __name__ == "__main__":
@@ -162,6 +204,14 @@ if __name__ == "__main__":
     #ee_rotation_tests(fa)
 
     # We could iteratively fine-tune this to get good starting pose.
-    finetune_pose(fa)
+    #finetune_pose(fa)
+
+    # From start pose, test going to waypoints, then back to start.
+    test_waypoint_sequence(fa)
 
     print('Finished with tests.')
+    T_ee_world = fa.get_pose()
+    joints = fa.get_joints()
+    print('FINAL Translation: {} | Rotation: {}'.format(
+            T_ee_world.translation, T_ee_world.quaternion))
+    print('FINAL Joints: {}'.format(joints))
