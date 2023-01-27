@@ -1,5 +1,4 @@
-"""
-Testing the camera stuff. References:
+"""Testing the camera stuff. References:
 
 https://github.com/IFL-CAMP/easy_handeye
 https://github.com/Wenxuan-Zhou/frankapy_env/blob/main/frankapy_env/pointcloud.py
@@ -10,6 +9,7 @@ https://www.notion.so/Progress-Report-Internal-5e92796ab6a94e66a70a6a77d2bbc4b6
 """
 import cv2
 import time
+import daniel_config as DC
 import daniel_utils as DU
 import yaml
 import open3d as o3d
@@ -18,154 +18,6 @@ from autolab_core import RigidTransform
 from frankapy import FrankaArm
 from data_collect import DataCollector
 np.set_printoptions(suppress=True, precision=5, linewidth=150)
-
-# NOTE(daniel): these work without errors.
-import rospy
-from geometry_msgs.msg import Point
-from geometry_msgs.msg import Pose
-from geometry_msgs.msg import PoseStamped
-from geometry_msgs.msg import Quaternion
-from geometry_msgs.msg import Transform
-from geometry_msgs.msg import TransformStamped
-from geometry_msgs.msg import Vector3
-
-# NOTE(daniel): these error due to something related to Python 2.
-# I'm guessing we should not use these.
-#import tf2_ros
-#import tf.transformations as tr
-
-# ---------------------------------------------------------------------------------- #
-# Home joints and pose (default position to get images?).
-# Get these by moving the robot (with e-stop on) to a 'reasonable' spot to get images.
-# Will require some trial and error. FYI, it seems to be reliable in getting to the
-# desired poses, down to about millimeter level precision w.r.t translation, and about
-# 0.001 precision (in radians) for the joints (I think all are revolute). Nice...
-#
-# Possible home:
-# Translation: [ 0.333  -0.107   0.6424] | Rotation: [-0.0291  0.029   0.9991 -0.01  ]
-# Joints: [-0.5896 -0.4637  0.1914 -1.6885  0.0481  1.1862 -2.7011]
-#
-# Possible for lowering+testing rotations:
-# Translation: [ 0.324  -0.1048  0.2282] | Rotation: [-0.0047  0.0177  0.9998 -0.0077]
-# Joints: [-0.4803 -0.503   0.1917 -2.8445  0.104   2.3419 -2.7057]
-# ---------------------------------------------------------------------------------- #
-EE_HOME = np.array([0.333, -0.107, 0.6424, -0.0291, 0.029, 0.9991, -0.01])
-JOINTS_HOME = np.array([-0.5896, -0.4637, 0.1914, -1.6885, 0.0481, 1.1862, -2.7011])
-
-EE_GRIP = np.array([0.324, -0.1048, 0.2282, -0.0047, 0.0177, 0.9998, -0.0077])
-JOINTS_GRIP = np.array([-0.4803, -0.503, 0.1917, -2.8445, 0.104, 2.3419, -2.7057])
-# ---------------------------------------------------------------------------------- #
-
-
-# ---------------------------------------------------------------------------------- #
-# https://github.com/DanielTakeshi/mixed-media-physical/blob/main/config.py
-# Get from `rostopic echo /k4a/rgb/camera_info`. These are the _intrinsics_,
-# which are just given to us (we don't need calibration for these). We do need
-# a separate roslaunch command, and that directly affects these values.
-#
-# fx  0 x0
-#  0 fy y0
-#  0  0  1
-
-K_matrices = {
-    # From the Sawyer (scooping).
-    #'k4a': np.array([
-    #    [977.870,     0.0, 1022.401],
-    #    [    0.0, 977.865,  780.697],
-    #    [    0.0,     0.0,      1.0]
-    #]),
-    # From the Franka setup (iam-dopey).
-    'k4a': np.array([
-        [609.096,     0.0, 639.614],
-        [    0.0, 608.888, 365.639],
-        [    0.0,     0.0,     1.0]
-    ]),
-}
-# ---------------------------------------------------------------------------------- #
-
-
-# ---------------------------------------------------------------------------------------- #
-# https://answers.ros.org/question/332407/transformstamped-to-transformation-matrix-python/
-# ---------------------------------------------------------------------------------------- #
-
-def pose_to_pq(msg):
-    """Convert a C{geometry_msgs/Pose} into position/quaternion np arrays
-
-    @param msg: ROS message to be converted
-    @return:
-      - p: position as a np.array
-      - q: quaternion as a numpy array (order = [x,y,z,w])
-    """
-    p = np.array([msg.position.x, msg.position.y, msg.position.z])
-    q = np.array([msg.orientation.x, msg.orientation.y,
-                  msg.orientation.z, msg.orientation.w])
-    return p, q
-
-
-def pose_stamped_to_pq(msg):
-    """Convert a C{geometry_msgs/PoseStamped} into position/quaternion np arrays
-
-    @param msg: ROS message to be converted
-    @return:
-      - p: position as a np.array
-      - q: quaternion as a numpy array (order = [x,y,z,w])
-    """
-    return pose_to_pq(msg.pose)
-
-
-def transform_to_pq(msg):
-    """Convert a C{geometry_msgs/Transform} into position/quaternion np arrays
-
-    @param msg: ROS message to be converted
-    @return:
-      - p: position as a np.array
-      - q: quaternion as a numpy array (order = [x,y,z,w])
-    """
-    p = np.array([msg.translation.x, msg.translation.y, msg.translation.z])
-    q = np.array([msg.rotation.x, msg.rotation.y,
-                  msg.rotation.z, msg.rotation.w])
-    return p, q
-
-
-def transform_stamped_to_pq(msg):
-    """Convert a C{geometry_msgs/TransformStamped} into position/quaternion np arrays
-
-    @param msg: ROS message to be converted
-    @return:
-      - p: position as a np.array
-      - q: quaternion as a numpy array (order = [x,y,z,w])
-    """
-    return transform_to_pq(msg.transform)
-
-
-def msg_to_se3(msg):
-    """Conversion from geometric ROS messages into SE(3)
-
-    @param msg: Message to transform. Acceptable types - C{geometry_msgs/Pose}, C{geometry_msgs/PoseStamped},
-    C{geometry_msgs/Transform}, or C{geometry_msgs/TransformStamped}
-    @return: a 4x4 SE(3) matrix as a numpy array
-    @note: Throws TypeError if we receive an incorrect type.
-    """
-    if isinstance(msg, Pose):
-        p, q = pose_to_pq(msg)
-    elif isinstance(msg, PoseStamped):
-        p, q = pose_stamped_to_pq(msg)
-    elif isinstance(msg, Transform):
-        p, q = transform_to_pq(msg)
-    elif isinstance(msg, TransformStamped):
-        p, q = transform_stamped_to_pq(msg)
-    else:
-        raise TypeError("Invalid type for conversion to SE(3)")
-    norm = np.linalg.norm(q)
-    if np.abs(norm - 1.0) > 1e-3:
-        raise ValueError(
-            "Received un-normalized quaternion (q = {0:s} ||q|| = {1:3.6f})".format(
-                str(q), np.linalg.norm(q)))
-    elif np.abs(norm - 1.0) > 1e-6:
-        q = q / norm
-    g = tr.quaternion_matrix(q)
-    g[0:3, -1] = p
-    return g
 
 
 def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
@@ -192,7 +44,7 @@ def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
     matrix_camera_to_world = T_BC.matrix  # TODO check units
 
     # Get 4x4 camera intrinsics matrix.
-    K = K_matrices[camera_ns]
+    K = DU.K_matrices[camera_ns]
     u0 = K[0, 2]
     v0 = K[1, 2]
     fx = K[0, 0]
@@ -268,7 +120,7 @@ def world_to_uv(T_CB, world_coordinate, camera_ns='k4a', debug_print=False):
         print("")
 
     # Get 4x4 camera intrinsics matrix.
-    K = K_matrices[camera_ns]
+    K = DU.K_matrices[camera_ns]
     u0 = K[0, 2]
     v0 = K[1, 2]
     fx = K[0, 0]
@@ -299,11 +151,6 @@ def load_transformation(filename):
         with open(filename, 'rb') as f:
             transformation = np.load(f)
     return transformation
-
-
-def test_camera_to_world():
-    """Test going from camera pixels to world coordinates."""
-    raise NotImplementedError()
 
 
 def test_world_to_camera():
@@ -396,15 +243,14 @@ def test_world_to_camera():
     cv2.imwrite('original.png', img=cimg)
 
 
-def test_camera():
-    """Main idea of how this works:
+def test_camera_to_world():
+    """Test camera and pixel to world stuff.
 
     Do we need two poses, for (base,EE) and (EE,camera)? Then we combine them?
     I think the former is `fa.get_pose()` and the latter is from calibration.
     Be careful with units. Calibration yaml files and the transformations there
-    are in meters, along with `fa.get_pose()` transformations.
-
-    But I think the camera information matrix puts units in millimeters.
+    are in meters, along with `fa.get_pose()` transformations.  But I think the
+    camera information matrix puts units in millimeters.
     """
     dc = DataCollector()
     print('Started the data collector!')
@@ -422,15 +268,11 @@ def test_camera():
     T_ee_world = fa.get_pose()
     print(f'T_ee_world:\n{T_ee_world}\n')
 
-    # # Wait, we might not want the tool offset since the calibration we did does NOT
-    # # consider that. Unfortunately this seems to be the same as earlier since I
-    # # don't think we have set it anywhere?
-    # T_ee_world_nooff = fa.get_pose(include_tool_offset=False)
-    # print(f'T_ee_world_nooff:\n{T_ee_world_nooff}\n')
-
-    # # This is the identity matrix & translation, so definitely the 'origin'.
-    # T_toolbasepose = fa.get_tool_base_pose()
-    # print(f'fa.get_tool_base_pose():\n{T_toolbasepose}\n')
+    # Might just do this one time?
+    print('Translation: {} | Rotation: {}'.format(
+        T_ee_world.translation, T_ee_world.quaternion))
+    joints = fa.get_joints()
+    print('Joints: {}'.format(joints))
 
     # Combine the transformations? Trying to follow `examples/move_robot.py`
     # and from the debugging that RigidTransform provides.
@@ -446,7 +288,7 @@ def test_camera():
     T_cam_world = T_ee_world * T_cam_ee
     print(f'T_cam_world:\n{T_cam_world}\n')
     T_cam_world.translation *= 1000.0
-    print(f'T_cam_world with millimeter units?:\n{T_cam_world}\n')
+    print(f'T_cam_world now w/millimeters:\n{T_cam_world}\n')
 
     # Get the aligned color and depth images.
     time.sleep(0.1)
@@ -481,12 +323,17 @@ def test_camera():
     print(f'\npos_world (mm):\n{pos_world_mm}')
     print(f'div by 1000 (m):\n{pos_world_meter}')
 
+    # Fine-tune the robot positions.
+
     # Later, have EE go to those positions. Can do pick and place later.
     # TODO
+    #DU.pick_only(
+    #    fa=fa, pix0=None, img_c=None, z_delta=None,
+    #)
     time.sleep(1)
 
     print('Finished with tests.')
 
 
 if __name__ == "__main__":
-    test_camera()
+    test_camera_to_world()

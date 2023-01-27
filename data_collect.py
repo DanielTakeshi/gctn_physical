@@ -75,10 +75,10 @@ class DataCollector:
         self.mask_im = None
 
         # For cropping images to (w,h) BEFORE resizing to (160,320).
-        self.crop_x = 0 + 140
-        self.crop_y = 0 + 110
-        self.crop_w = 1280 - (2*140)
-        self.crop_h =  720 - (2*110)
+        self.crop_x = 0 + 180
+        self.crop_y = 0 + 130
+        self.crop_w = 1280 - (2*180)
+        self.crop_h =  720 - (2*130)
         self.width  = 320
         self.height = 160
 
@@ -109,8 +109,8 @@ class DataCollector:
         #self.c_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
         im = ros_numpy.numpify(msg)
         self.c_image = im[:, :, :3].astype(np.uint8)
-        self.c_image_bbox = self._process_color(self.c_image, bbox=True)
-        self.c_image_crop = self._process_color(self.c_image, bbox=False)
+        self.c_image_bbox = self._process_color(self.c_image, bbox_no_crop=True)
+        self.c_image_crop = self._process_color(self.c_image, bbox_no_crop=False)
 
         # Segment the cable, using c_image_crop (we might re-name...).
         self.hsv = cv2.cvtColor(self.c_image_crop, cv2.COLOR_BGR2HSV)
@@ -140,15 +140,16 @@ class DataCollector:
     def stop_recording(self):
         self.record_img = False
 
-    def _process_color(self, cimg, bbox=False):
+    def _process_color(self, cimg, bbox_no_crop=False):
         """Process the color image. Don't make this too computationally heavy.
 
-        RGB shape is (720, 1280, 4) so decrease the 720 so it uses 640 pixels. Then
-        resize (640, 1280) to (160, 320) which is what I used for Transporters.
-        Edit: this is up to debate, we might want to crop more, this will reduce
-        perspective image artifacts I think, and make cables appear 'bigger'.
+        Currently we're going to support bounding boxes (for visualization) but
+        normally we want to crop it and then resize. I think cropping first is
+        critical to a 1:2 ratio, then we can resize. Tune the crop parameters.
+        The starting RGB image shape is (720,1280,3). As of 01/27, cropping to
+        (460,920,3).
         """
-        if bbox:
+        if bbox_no_crop:
             cimg = self.put_bbox_on_img(
                 cimg, x=self.crop_x, y=self.crop_y, w=self.crop_w, h=self.crop_h
             )
