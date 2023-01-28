@@ -1,4 +1,5 @@
 import numpy as np
+from frankapy.franka_constants import FrankaConstants as FC
 
 # -------------------------------------------------------------------------------- #
 # Home joints and pose (default position to get images?). Use the `finetune_pose()`
@@ -6,9 +7,16 @@ import numpy as np
 # the images. Then WP1 is slightly lower, then WP2 is lower still, then we will do
 # pick and place. Then, return to WP2, then WP1, then HOME.
 # -------------------------------------------------------------------------------- #
+JOINTS_RESET = np.copy(np.array(FC.HOME_JOINTS))
+JOINTS_RESET[6] -= np.deg2rad(90)  # takes into account the camera
+
 EE_TOP = np.array([0.3744, -0.1146, 0.7233, -0.0074, 0.0290, 0.9993, -0.0218])
 EE_WP1 = np.array([0.3314, -0.1157, 0.6654, -0.0097, 0.0250, 0.9989, -0.0378])
 EE_WP2 = np.array([0.3813, -0.0687, 0.1529, -0.0009, 0.1402, 0.9897, -0.0298])
+
+# Note: See https://frankaemika.github.io/docs/control_parameters.html
+# JOINT_LIMITS_MIN = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
+# JOINT_LIMITS_MAX = [ 2.8973,  1.7628,  2.8973, -0.0698,  2.8973,  3.7525,  2.8973]
 
 JOINTS_TOP = np.array([-2.8367, 0.2063, 2.7082, -1.1855, -0.1566, 0.9927, -2.5034])
 JOINTS_WP1 = np.array([-2.8866, 0.4845, 2.8205, -1.6213, -0.2449, 1.1501, -2.4354])
