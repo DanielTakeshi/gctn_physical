@@ -17,9 +17,15 @@ from frankapy.franka_constants import FrankaConstants as FC
 JOINTS_RESET = np.copy(np.array(FC.HOME_JOINTS))
 JOINTS_RESET[6] -= np.deg2rad(90)  # takes into account the camera
 
+# CAREFUL: all poses must be valid with the mounted camera and don't damage cables.
+
 # Basically moving the joints around. Draft. Last joint can be -3*pi/4 = -2.3562 if
 # we judge the reset pose to be at pi/4 (we want to flip 180 degrees).
-JOINTS_TOP = np.array([-0.1740, -0.3637, 0.0106, -1.4497, -0.0062, 1.0929, -2.3562])
+#JOINTS_TOP = np.array([-0.1740, -0.3637, 0.0106, -1.4497, -0.0062, 1.0929, -2.3562])
+
+# 01/30. Fine-tuning to try and make the setup reachable for all poses.
+#JOINTS_TOP = np.array([-0.5314, -0.3901, 0.4439, -1.6139, 0.1128, 1.2335, -2.4047])
+JOINTS_TOP = np.array([-0.5327, -0.3815, 0.5206, -1.6181, 0.1410, 1.2335, -2.3280])
 
 # Got WP1 from the reset_joints() BUT adding pi/2 to EE (-pi/4 to pi/4).
 JOINTS_WP1 = np.array([-0.0003, -0.7851, 0.0001, -2.3564, -0.0004, 1.5705, -0.7851])

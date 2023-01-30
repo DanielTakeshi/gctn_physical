@@ -19,11 +19,11 @@ def get_z_rotation_delta(img=None):
     point. If we don't have an image, just put a fake (but valid!) rotation.
     """
     if img is None:
-        return -70
+        return 0
     raise NotImplementedError()
 
 
-def test_pick_and_place(z_offset=0.050):
+def test_pick_and_place(z_offset=0.050, open_close_gripper=True):
     """Go to a sequence of waypoints to test intermediate grasp poses.
 
     See daniel_config for details. Reason why I need to do this is that it
@@ -37,10 +37,10 @@ def test_pick_and_place(z_offset=0.050):
     assert z_offset > 0, z_offset
 
     # Be careful about how we compute these from our actions!
-    p0_x_delta =  0.200
-    p0_y_delta = -0.150
+    p0_x_delta =  0.100
+    p0_y_delta = -0.100
     p1_x_delta =  0.000
-    p1_y_delta =  0.350
+    p1_y_delta =  0.200
     p0_norm = np.linalg.norm(np.array([p0_x_delta, p0_y_delta]))
     p1_norm = np.linalg.norm(np.array([p1_x_delta, p1_y_delta]))
     p0_dur = int(max(3, p0_norm*20))
@@ -87,7 +87,8 @@ def test_pick_and_place(z_offset=0.050):
     fa.goto_pose(T_ee_world, duration=p0_dur)
 
     # Open the gripper.
-    #fa.open_gripper()
+    if open_close_gripper:
+        fa.open_gripper()
 
     # Lower to actually grasp.
     T_ee_world = fa.get_pose()
@@ -97,7 +98,8 @@ def test_pick_and_place(z_offset=0.050):
     fa.goto_pose(T_ee_world)
 
     # Close the gripper.
-    #fa.close_gripper()
+    if open_close_gripper:
+        fa.close_gripper()
 
     # Raise by a z offset.
     T_ee_world = fa.get_pose()
@@ -122,7 +124,8 @@ def test_pick_and_place(z_offset=0.050):
     fa.goto_pose(T_ee_world)
 
     # Open the gripper.
-    #fa.open_gripper()
+    if open_close_gripper:
+        fa.open_gripper()
 
     # Raise by z offset again.
     T_ee_world = fa.get_pose()

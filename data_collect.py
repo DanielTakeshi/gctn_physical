@@ -75,12 +75,15 @@ class DataCollector:
         self.mask_im = None
 
         # For cropping images to (w,h) BEFORE resizing to (160,320).
-        self.crop_x = 0 + 180
-        self.crop_y = 0 + 130
-        self.crop_w = 1280 - (2*180)
-        self.crop_h =  720 - (2*130)
+        self.crop_x = 0 + 260
+        self.crop_y = 0 + 170
+        self.crop_w = 1280 - (2*self.crop_x)
+        self.crop_h =  720 - (2*self.crop_y)
         self.width  = 320
         self.height = 160
+        assert self.crop_w >= self.width, '{} {}'.format(self.crop_w, self.width)
+        assert self.crop_h >= self.height, '{} {}'.format(self.crop_h, self.height)
+        print('DC: resize to ({}, {}) before crops'.format(self.crop_w, self.crop_h))
 
         # Get masked images. See 'segmentor.py' scripts. Updated 01/30.
         self.mask_lo = np.array([ 90,  50,   0], dtype='uint8')
@@ -227,6 +230,8 @@ if __name__ == "__main__":
             cv2.imwrite(fname, dc.c_image_bbox)
             fname = join(SAVEDIR, f'img_{tt}_color_crop.png')
             cv2.imwrite(fname, dc.c_image_crop)
+            fname = join(SAVEDIR, f'img_{tt}_mask.png')
+            cv2.imwrite(fname, dc.mask_im)
 
         if dc.d_image is not None:
             print('DC image (depth):\n{}'.format(dc.d_image.shape))
