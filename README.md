@@ -20,10 +20,18 @@ things.
 
 ## My Setup
 
-To get images: I use the robot e-stop to move its gripper to a reasonable spot,
-then `python basic_franka_usage.py` to fine-tune it with code. I want a good
-top-down image.  Then test with `python data_collect.py` to check bounding
-boxes and cropping convention and segmentation masks.
+To get images:
+
+- I use the robot e-stop to move its gripper to a reasonable spot, then `python
+  basic_franka_usage.py` to fine-tune it with code. I want a good top-down
+  image.
+- Then test with `python data_collect.py` to check bounding boxes and cropping
+  convention and segmentation masks.
+- Then check that the robot can actually reach the extremes of the workspace.
+
+Only once those are done, then I can actually collect 'real' demonstration
+data. I do this by hand since it's a LOT faster than having the robot move
+there.
 
 
 ## Some random tips from Oliver's students:

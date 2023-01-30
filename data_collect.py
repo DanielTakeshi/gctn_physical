@@ -82,8 +82,8 @@ class DataCollector:
         self.width  = 320
         self.height = 160
 
-        # Get masked images. See 'segmentor.py' scripts.
-        self.mask_lo = np.array([ 90,  35,   0], dtype='uint8')
+        # Get masked images. See 'segmentor.py' scripts. Updated 01/30.
+        self.mask_lo = np.array([ 90,  50,   0], dtype='uint8')
         self.mask_up = np.array([255, 255, 255], dtype='uint8')
         self.mask_im = None
 
