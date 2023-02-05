@@ -75,8 +75,8 @@ class DataCollector:
         self.mask_im = None
 
         # For cropping images to (w,h) BEFORE resizing to (160,320).
-        self.crop_x = 0 + 300
-        self.crop_y = 0 + 190
+        self.crop_x = 0 + 320
+        self.crop_y = 0 + 200
         self.crop_w = 1280 - (2*self.crop_x)
         self.crop_h =  720 - (2*self.crop_y)
         self.width  = 320
