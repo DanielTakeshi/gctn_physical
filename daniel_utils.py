@@ -7,6 +7,28 @@ import sys
 import numpy as np
 from autolab_core import RigidTransform
 np.set_printoptions(suppress=True, precision=4, linewidth=150)
+import open3d as o3d
+import yaml
+
+
+def load_transformation(filename):
+    """
+    Load camera calibration (from Wenxuan).
+    """
+    if '.yaml' in filename:
+        calibration = yaml.load(open(filename, 'rb'), Loader=yaml.FullLoader)
+        calibration = calibration['transformation']
+        trans = np.array([calibration['x'], calibration['y'], calibration['z']])
+        quat = np.array([calibration['qw'], calibration['qx'], calibration['qy'], calibration['qz']])
+        R = o3d.geometry.get_rotation_matrix_from_quaternion(quat)
+        T = np.eye(4)
+        T[:3, :3] = R
+        T[:3, 3] = trans
+        transformation = T
+    elif '.npy' in filename:
+        with open(filename, 'rb') as f:
+            transformation = np.load(f)
+    return transformation
 
 
 def get_rigid_transform_from_7D(nparr):

@@ -11,8 +11,6 @@ import cv2
 import time
 import daniel_config as DC
 import daniel_utils as DU
-import yaml
-import open3d as o3d
 import numpy as np
 from autolab_core import RigidTransform
 from frankapy import FrankaArm
@@ -20,61 +18,7 @@ from data_collect import DataCollector
 np.set_printoptions(suppress=True, precision=5, linewidth=150)
 
 
-def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
-    """Transform from image coordinates and depth to world coordinates.
-
-    Copied this from my 'mixed media' code, but likely have to change.
-    https://github.com/DanielTakeshi/mixed-media-physical/blob/63ce1b2118d77f3757452540feeabd733fb9a9f4/utils_robot.py#L106
-
-    TODO(daniel): can we keep track of the units carefully?
-    I think the K matrix uses millimeters, and so does the depth camera.
-    But does T_BC need to use millimeters or meters?
-
-    Parameters
-    ----------
-    T_BC: should transform from camera to world. This was the ordering we had it
-        earlier, we created a `matrix_camera_to_world`.
-    u, v: image coordinates
-    z: depth value
-
-    Returns
-    -------
-    world coordinates at pixels (u,v) and depth z.
-    """
-    matrix_camera_to_world = T_BC.matrix  # TODO check units
-
-    # Get 4x4 camera intrinsics matrix.
-    K = DU.K_matrices[camera_ns]
-    u0 = K[0, 2]
-    v0 = K[1, 2]
-    fx = K[0, 0]
-    fy = K[1, 1]
-
-    # Will this work? Need to check. From SoftGym, and also they flip u,v here...
-    one = np.ones(u.shape)
-    x = (v - u0) * z / fx
-    y = (u - v0) * z / fy
-
-    # If x,y,z came from scalars, makes (1,4) matrix. Need to test for others.
-    cam_coords = np.stack([x, y, z, one], axis=1)
-
-    # TODO(daniel): which one?
-    #world_coords = matrix_camera_to_world.dot(cam_coords.T)  # (4,4) x (4,1)
-    world_coords = cam_coords.dot(matrix_camera_to_world.T)
-
-    if debug_print:
-        # Camera axis has +x pointing to me, +y to wall, +z downwards.
-        #print('\nMatrix camera to world')
-        #print(matrix_camera_to_world)
-        #print('\n(inverse of that matrix)')
-        #print(np.linalg.inv(matrix_camera_to_world))
-        print('\n(cam_coords before converting to world)')
-        print(cam_coords)
-        print('')
-
-    return world_coords  # (n,4) but ignore last row
-
-
+# TODO(daniel): not tested / used yet.
 def world_to_uv(T_CB, world_coordinate, camera_ns='k4a', debug_print=False):
     """Transform from world coordinates to image pixels.
 
@@ -133,26 +77,7 @@ def world_to_uv(T_CB, world_coordinate, camera_ns='k4a', debug_print=False):
     return (u,v)
 
 
-def load_transformation(filename):
-    """
-    Load camera calibration (from Wenxuan).
-    """
-    if '.yaml' in filename:
-        calibration = yaml.load(open(filename, 'rb'), Loader=yaml.FullLoader)
-        calibration = calibration['transformation']
-        trans = np.array([calibration['x'], calibration['y'], calibration['z']])
-        quat = np.array([calibration['qw'], calibration['qx'], calibration['qy'], calibration['qz']])
-        R = o3d.geometry.get_rotation_matrix_from_quaternion(quat)
-        T = np.eye(4)
-        T[:3, :3] = R
-        T[:3, 3] = trans
-        transformation = T
-    elif '.npy' in filename:
-        with open(filename, 'rb') as f:
-            transformation = np.load(f)
-    return transformation
-
-
+# TODO(daniel): not tested / used yet.
 def test_world_to_camera():
     """Test going from world coordinates to camera pixels."""
     # TODO(daniel): another exmpale for me to test
@@ -243,6 +168,61 @@ def test_world_to_camera():
     cv2.imwrite('original.png', img=cimg)
 
 
+def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
+    """Transform from image coordinates and depth to world coordinates.
+
+    Copied this from my 'mixed media' code, but likely have to change.
+    https://github.com/DanielTakeshi/mixed-media-physical/blob/63ce1b2118d77f3757452540feeabd733fb9a9f4/utils_robot.py#L106
+
+    TODO(daniel): can we keep track of the units carefully?
+    I think the K matrix uses millimeters, and so does the depth camera.
+    But does T_BC need to use millimeters or meters?
+
+    Parameters
+    ----------
+    T_BC: should transform from camera to world. This was the ordering we had it
+        earlier, we created a `matrix_camera_to_world`.
+    u, v: image coordinates
+    z: depth value
+
+    Returns
+    -------
+    world coordinates at pixels (u,v) and depth z.
+    """
+    matrix_camera_to_world = T_BC.matrix  # NOTE(daniel): I think units are OK.
+
+    # Get 4x4 camera intrinsics matrix.
+    K = DC.K_matrices[camera_ns]
+    u0 = K[0, 2]
+    v0 = K[1, 2]
+    fx = K[0, 0]
+    fy = K[1, 1]
+
+    # Will this work? Need to check. From SoftGym, and also they flip u,v here...
+    one = np.ones(u.shape)
+    x = (v - u0) * z / fx
+    y = (u - v0) * z / fy
+
+    # If x,y,z came from scalars, makes (1,4) matrix. Need to test for others.
+    cam_coords = np.stack([x, y, z, one], axis=1)
+
+    # TODO(daniel): which one?
+    #world_coords = matrix_camera_to_world.dot(cam_coords.T)  # (4,4) x (4,1)
+    world_coords = cam_coords.dot(matrix_camera_to_world.T)
+
+    if debug_print:
+        # Camera axis has +x pointing to me, +y to wall, +z downwards.
+        #print('\nMatrix camera to world')
+        #print(matrix_camera_to_world)
+        #print('\n(inverse of that matrix)')
+        #print(np.linalg.inv(matrix_camera_to_world))
+        print('\n(cam_coords before converting to world)')
+        print(cam_coords)
+        print('')
+
+    return world_coords  # (n,4) but ignore last row
+
+
 def test_camera_to_world():
     """Test camera and pixel to world stuff.
 
@@ -251,6 +231,10 @@ def test_camera_to_world():
     Be careful with units. Calibration yaml files and the transformations there
     are in meters, along with `fa.get_pose()` transformations.  But I think the
     camera information matrix puts units in millimeters.
+
+    Careful: when we use the raw pixels these have to be for the original image,
+    not the one resized. Si it has to be expressed in the raw image space. See
+    the data_collector.py for more details.
     """
     dc = DataCollector()
     print('Started the data collector!')
@@ -258,7 +242,7 @@ def test_camera_to_world():
     # The calibration file, copied from `/<HOME>/.ros/easy_handeye`.
     # I think this gives transformation from EE to camera?
     filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # from 02/05/2022
-    T = load_transformation(filename)
+    T = DU.load_transformation(filename)
     print(f'Loaded transformation from {filename}:\n{T}\n')
 
     # Also load transformation from the robot base to the EE? I think we need that?
