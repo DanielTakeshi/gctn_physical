@@ -83,7 +83,7 @@ class DataCollector:
         self.height = 160
         assert self.crop_w >= self.width, '{} {}'.format(self.crop_w, self.width)
         assert self.crop_h >= self.height, '{} {}'.format(self.crop_h, self.height)
-        print('DC: resize to ({}, {}) before crops, (height, width)'.format(
+        print('DC: resize to ({}, {}) before resizing, (height, width)'.format(
                 self.crop_h, self.crop_w))
 
         # Get masked images. See 'segmentor.py' scripts. Updated 01/30.
