@@ -257,7 +257,7 @@ def test_camera_to_world():
 
     # The calibration file, copied from `/<HOME>/.ros/easy_handeye`.
     # I think this gives transformation from EE to camera?
-    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v02.yaml'
+    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # from 02/05/2022
     T = load_transformation(filename)
     print(f'Loaded transformation from {filename}:\n{T}\n')
 

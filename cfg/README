@@ -1,0 +1,11 @@
+# Calibration files
+
+I am using `panda_EE` as the hand joint, since that should coincide (hopefully)
+with the pose from `fa.get_pose()` in frankapy.
+
+I collected v04 on 02/05/2023. I think it's OK, though the z-offset seems a bit
+smaller than I'd expect. I collected those with the default Franka Desk App
+values, so the "x offset" there is -0.01 (not -0.05 as I later set it for
+experiments). I'm not sure if that affects things? The "v03" here is also from
+that day, but has that offset, and the resulting x-transformation seems off by
+about 3-4cm.
