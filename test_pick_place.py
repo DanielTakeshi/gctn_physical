@@ -22,7 +22,7 @@ def get_z_rotation_delta(img=None):
     left, so we probably want some negative rotation deltas.
     """
     if img is None:
-        return -60
+        return -0
     raise NotImplementedError()
 
 
@@ -55,8 +55,8 @@ def test_pick_and_place(
     assert 0 < z_off_2 <= 0.100, z_off_2
 
     # Be careful about how we compute these from our actions!
-    p0_x_delta =  0.000
-    p0_y_delta = -0.400
+    p0_x_delta = -0.170
+    p0_y_delta = -0.350
     p1_x_delta =  0.000
     p1_y_delta =  0.000
     p0_norm = np.linalg.norm(np.array([p0_x_delta, p0_y_delta]))
