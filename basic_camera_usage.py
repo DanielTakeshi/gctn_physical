@@ -168,61 +168,6 @@ def test_world_to_camera():
     cv2.imwrite('original.png', img=cimg)
 
 
-def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
-    """Transform from image coordinates and depth to world coordinates.
-
-    Copied this from my 'mixed media' code, but likely have to change.
-    https://github.com/DanielTakeshi/mixed-media-physical/blob/63ce1b2118d77f3757452540feeabd733fb9a9f4/utils_robot.py#L106
-
-    TODO(daniel): can we keep track of the units carefully?
-    I think the K matrix uses millimeters, and so does the depth camera.
-    But does T_BC need to use millimeters or meters?
-
-    Parameters
-    ----------
-    T_BC: should transform from camera to world. This was the ordering we had it
-        earlier, we created a `matrix_camera_to_world`.
-    u, v: image coordinates
-    z: depth value
-
-    Returns
-    -------
-    world coordinates at pixels (u,v) and depth z.
-    """
-    matrix_camera_to_world = T_BC.matrix  # NOTE(daniel): I think units are OK.
-
-    # Get 4x4 camera intrinsics matrix.
-    K = DC.K_matrices[camera_ns]
-    u0 = K[0, 2]
-    v0 = K[1, 2]
-    fx = K[0, 0]
-    fy = K[1, 1]
-
-    # Will this work? Need to check. From SoftGym, and also they flip u,v here...
-    one = np.ones(u.shape)
-    x = (v - u0) * z / fx
-    y = (u - v0) * z / fy
-
-    # If x,y,z came from scalars, makes (1,4) matrix. Need to test for others.
-    cam_coords = np.stack([x, y, z, one], axis=1)
-
-    # TODO(daniel): which one?
-    #world_coords = matrix_camera_to_world.dot(cam_coords.T)  # (4,4) x (4,1)
-    world_coords = cam_coords.dot(matrix_camera_to_world.T)
-
-    if debug_print:
-        # Camera axis has +x pointing to me, +y to wall, +z downwards.
-        #print('\nMatrix camera to world')
-        #print(matrix_camera_to_world)
-        #print('\n(inverse of that matrix)')
-        #print(np.linalg.inv(matrix_camera_to_world))
-        print('\n(cam_coords before converting to world)')
-        print(cam_coords)
-        print('')
-
-    return world_coords  # (n,4) but ignore last row
-
-
 def test_camera_to_world():
     """Test camera and pixel to world stuff.
 
@@ -302,7 +247,7 @@ def test_camera_to_world():
     cv2.imwrite('dimg_coord.png', dimg_proc)
 
     # Using T_cam_world, and camera info, should convert them to world points.
-    pos_world_mm = uv_to_world_pos(T_cam_world, u, v, z, debug_print=False)
+    pos_world_mm = DU.uv_to_world_pos(T_cam_world, u, v, z, debug_print=False)
     pos_world_meter = pos_world_mm / 1000.
     print(f'\npos_world (mm):\n{pos_world_mm}')
     print(f'div by 1000 (m):\n{pos_world_meter}')
