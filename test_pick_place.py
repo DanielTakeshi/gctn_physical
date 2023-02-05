@@ -22,14 +22,15 @@ def get_z_rotation_delta(img=None):
     left, so we probably want some negative rotation deltas.
     """
     if img is None:
-        return -30
+        return -60
     raise NotImplementedError()
 
 
 def test_pick_and_place(
         z_off_1=0.030,
         z_off_2=0.070,
-        open_close_gripper=True
+        open_close_gripper=True,
+        debug_pick_bounds=True,
     ):
     """Go to a sequence of waypoints to test intermediate grasp poses.
 
@@ -47,14 +48,16 @@ def test_pick_and_place(
     z_off_2: offset for raising after grasping (empirically we need this, likely
         due to impedance control and extra cable weight).
     open_close_gripper: whether to test with opening and closing grippers.
+    debug_pick_bounds: if we want to stop after we reach picking point, to test
+        workspace bounds. Should usually be False.
     """
     assert 0 < z_off_1 <= 0.100, z_off_1
     assert 0 < z_off_2 <= 0.100, z_off_2
 
     # Be careful about how we compute these from our actions!
-    p0_x_delta =  0.190
-    p0_y_delta =  0.320
-    p1_x_delta = -0.360
+    p0_x_delta =  0.000
+    p0_y_delta = -0.400
+    p1_x_delta =  0.000
     p1_y_delta =  0.000
     p0_norm = np.linalg.norm(np.array([p0_x_delta, p0_y_delta]))
     p1_norm = np.linalg.norm(np.array([p1_x_delta, p1_y_delta]))
@@ -114,6 +117,12 @@ def test_pick_and_place(
     print(f'\nLower to grasp: {T_ee_world}')
     DU.wait_for_enter()
     fa.goto_pose(T_ee_world)
+
+    # Temp debugging, if we want to check bounds of the workspace.
+    if debug_pick_bounds:
+        T_ee_world = fa.get_pose()
+        print(f'\nHere is the current EE pose:\n{T_ee_world}')
+        DU.wait_for_enter()
 
     # Close the gripper. Careful! Need `grasp=True`.
     if open_close_gripper:
