@@ -139,7 +139,7 @@ def finetune_pose(fa):
     # Tweak translation. Don't forget to uncomment `goto_pose`.
     #T_ee_world.translation += [0., 0.010, -0.0]
     #T_ee_world.translation += [0., -0.0, -0.030]
-    #T_ee_world.translation += [0.05, -0.0, -0.0]
+    #T_ee_world.translation += [0.010, -0.0, -0.0]
     #fa.goto_pose(T_ee_world, use_impedance=True, duration=5)
 
     print('Finished with fine-tuning pose.')
@@ -149,6 +149,7 @@ if __name__ == "__main__":
     print('Creating the Franka Arm...')
     fa = FrankaArm()
     print(f'Done creating: {fa}')
+    fa.close_gripper()
 
     #daniel_testing(fa)
     #ee_rotation_tests(fa)

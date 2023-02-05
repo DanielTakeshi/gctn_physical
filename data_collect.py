@@ -75,15 +75,16 @@ class DataCollector:
         self.mask_im = None
 
         # For cropping images to (w,h) BEFORE resizing to (160,320).
-        self.crop_x = 0 + 260
-        self.crop_y = 0 + 170
+        self.crop_x = 0 + 300
+        self.crop_y = 0 + 190
         self.crop_w = 1280 - (2*self.crop_x)
         self.crop_h =  720 - (2*self.crop_y)
         self.width  = 320
         self.height = 160
         assert self.crop_w >= self.width, '{} {}'.format(self.crop_w, self.width)
         assert self.crop_h >= self.height, '{} {}'.format(self.crop_h, self.height)
-        print('DC: resize to ({}, {}) before crops'.format(self.crop_w, self.crop_h))
+        print('DC: resize to ({}, {}) before crops, (height, width)'.format(
+                self.crop_h, self.crop_w))
 
         # Get masked images. See 'segmentor.py' scripts. Updated 01/30.
         self.mask_lo = np.array([ 90,  50,   0], dtype='uint8')

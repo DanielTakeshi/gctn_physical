@@ -23,9 +23,10 @@ JOINTS_RESET[6] -= np.deg2rad(90)  # takes into account the camera
 # we judge the reset pose to be at pi/4 (we want to flip 180 degrees).
 #JOINTS_TOP = np.array([-0.1740, -0.3637, 0.0106, -1.4497, -0.0062, 1.0929, -2.3562])
 
-# 01/30. Fine-tuning to try and make the setup reachable for all poses.
+# Fine-tuning to try and make the setup reachable for all poses.
 #JOINTS_TOP = np.array([-0.5314, -0.3901, 0.4439, -1.6139, 0.1128, 1.2335, -2.4047])
-JOINTS_TOP = np.array([-0.5327, -0.3815, 0.5206, -1.6181, 0.1410, 1.2335, -2.3280])
+#JOINTS_TOP = np.array([-0.5327, -0.3815, 0.5206, -1.6181, 0.1410, 1.2335, -2.3280])  # 01/30
+JOINTS_TOP = np.array([-0.5337, -0.3563, 0.5253, -1.6232, 0.1394, 1.2847, -2.3275])  # 02/05
 
 # --------------------------- WP1 --------------------------- #
 # Got WP1 from the reset_joints() BUT adding pi/2 to EE (-pi/4 to pi/4).
