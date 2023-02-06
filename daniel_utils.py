@@ -241,19 +241,10 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
         So, a z_delta=-90 would cause the camera to face my desk but that also
         increases the risks of kinematic errors.
     """
-    def get_duration(x_delta, y_delta):
-        #p0_norm = np.linalg.norm(np.array([p0_x_delta, p0_y_delta]))
-        #p1_norm = np.linalg.norm(np.array([p1_x_delta, p1_y_delta]))
-        #p0_dur = int(max(3, p0_norm*20))
-        #p1_dur = int(max(3, p1_norm*20))
-        #print('(First)  Pull norm: {:0.3f}, p0_dur: {}'.format(p0_norm, p0_dur))
-        #print('(Second) Pull norm: {:0.3f}, p1_dur: {}\n'.format(p1_norm, p1_dur))
-        # We have to change the above.
-        pass
-
-    # TODO(daniel) -- need to fix a lot of the durations. Shouldn't be hard.
-    p0_dur = 5
-    p1_dur = 5
+    def get_duration(curr_xy, targ_xy):
+        norm_xy = np.linalg.norm(curr_xy - targ_xy)
+        p_dur = int(max(3, norm_xy*20))
+        return p_dur
 
     # TODO(daniel): check positional bounds.
     # (we should probably add safety checks)
@@ -282,8 +273,11 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
     prepick_w = np.copy(pick_w)
     prepick_w[2] = DC.Z_PRE_PICK
     T_ee_world = fa.get_pose()
+    curr_xy = T_ee_world.translation[:2]
+    targ_xy = prepick_w[:2]
+    p0_dur = get_duration(curr_xy, targ_xy)
     T_ee_world.translation = prepick_w
-    print(f'\nTranslate to be above picking point, press ENTER:\n{T_ee_world}')
+    print(f'\nTranslate to pre-pick, dur. {p0_dur}.')
     fa.goto_pose(T_ee_world, duration=p0_dur)
 
     # Open the gripper.
@@ -293,7 +287,7 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
     picking_w = np.copy(pick_w)
     picking_w[2] = DC.Z_PICK
     T_ee_world.translation = picking_w
-    print(f'\nLower to grasp: {T_ee_world}')
+    print(f'\nLower to grasp.')
     fa.goto_pose(T_ee_world)
 
     # Close the gripper. Careful! Need `grasp=True`.
@@ -304,22 +298,25 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
     prepick_w_2 = np.copy(pick_w)
     prepick_w_2[2] = DC.Z_PRE_PICK2
     T_ee_world.translation = prepick_w_2
-    print(f'\nBack to pre-pick: {T_ee_world}')
+    print(f'\nBack to pre-pick.')
     fa.goto_pose(T_ee_world)
 
     # Go to the pre-placing point.
-    # NOTE(daniel): should be based on the image/action, using fake values.
     preplace_w = np.copy(place_w)
     preplace_w[2] = DC.Z_PRE_PLACE
+    T_ee_world = fa.get_pose()
+    curr_xy = T_ee_world.translation[:2]
+    targ_xy = preplace_w[:2]
+    p1_dur = get_duration(curr_xy, targ_xy)
     T_ee_world.translation = preplace_w
-    print(f'\nTranslate to be above PLACING point: {T_ee_world}')
+    print(f'\nTranslate to pre-place, dur. {p1_dur}')
     fa.goto_pose(T_ee_world, duration=p1_dur)
 
     # Lower to place gently.
     placing_w = np.copy(place_w)
     placing_w[2] = DC.Z_PLACE
     T_ee_world.translation = placing_w
-    print(f'\nLower to place: {T_ee_world}')
+    print(f'\nLower to place.')
     fa.goto_pose(T_ee_world)
 
     # Open the gripper.
@@ -328,7 +325,7 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
 
     # Return to pre-placing point. NOTE(daniel): if remove lowering, remove this.
     T_ee_world.translation = preplace_w
-    print(f'\nReturn to pre-placing: {T_ee_world}')
+    print(f'\nReturn to pre-placing.')
     fa.goto_pose(T_ee_world)
 
     # Return to (second) waypoint. This should revert the rotation.

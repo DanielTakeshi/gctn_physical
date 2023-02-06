@@ -9,11 +9,13 @@ import os
 from os.path import join
 import cv2
 import time
+import json
 import pickle
 import datetime
 import argparse
 import numpy as np
 np.set_printoptions(suppress=True, precision=4, linewidth=150)
+from collections import defaultdict
 
 from frankapy import FrankaArm
 from autolab_core import RigidTransform
@@ -252,11 +254,16 @@ def check_imgs(img_dict):
     assert cimg.shape == dimg_proc.shape, f'{cimg.shape}, {dimg_proc.shape}'
 
 
-def save_stuff(save_dir, trial_info):
-    """Saves as much information as possible from the trial."""
-    raise NotImplementedError()
-    with open(save_dir, 'rb') as fh:
-        pickle.dump(fh)
+def save_stuff(args, trial_info):
+    """Saves info from trial, at each time step (overwriting if needed).
+
+    Currently just saving images and actions each time step, both as dicts.
+    We will save 1 more set of images, after the last action, to get the
+    final images.
+    """
+    p_fname = join(args.savedir, 'trial_info.pkl')
+    with open(p_fname, 'wb') as fh:
+        pickle.dump(trial_info, fh)
 
 
 def run_trial(args, count, fa, dc, T_cam_ee):
@@ -281,7 +288,7 @@ def run_trial(args, count, fa, dc, T_cam_ee):
     TODO(daniel): need to supply goal images!!!!!!! But that can come later once
     we have done more data collection.
     """
-    trial_info = {'images': []}
+    trial_info = defaultdict(list)
 
     for t in range(args.max_T):
         # Start with moving robot to home position, compute EE pose.
@@ -292,12 +299,10 @@ def run_trial(args, count, fa, dc, T_cam_ee):
 
         # I _think_ this seems OK? It passes my sanity checks.
         T_cam_world = T_ee_world * T_cam_ee
-        #print(f'T_cam_world:\n{T_cam_world}\n')
         T_cam_world.translation *= 1000.0
         print(f'T_cam_world now w/millimeters:\n{T_cam_world}\n')
 
         # Get the aligned color and depth images.
-        time.sleep(0.1)
         img_dict = dc.get_images()
         check_imgs(img_dict)
         c_img = img_dict['color_raw']
@@ -307,7 +312,7 @@ def run_trial(args, count, fa, dc, T_cam_ee):
         d_img_proc = img_dict['depth_proc']
         m_img = img_dict['mask_img']  # (160,320)
         m_img_tr = DU.triplicate(m_img)  # (160,320,3)
-        trial_info['images'].append(img_dict)
+        trial_info['img_dict'].append(img_dict)
 
         # Determine the action.
         pix0, pix1 = None, None
@@ -319,8 +324,11 @@ def run_trial(args, count, fa, dc, T_cam_ee):
             # Randomly pick a valid point on the m_img (on the cable).
             pix0 = DU.sample_distribution(m_img)
 
-            # For placing, maybe just pick the center point?
-            pix1 = np.int32([80,260])
+            # For placing, let's also pick a random point but not at boundary?
+            mask_place = np.zeros_like(m_img)
+            mask_place[20:160-20, 20:320-20] = 1
+            #pix1 = np.int32([80,260])  # or we can just hard-code it ...
+            pix1 = DU.sample_distribution(mask_place)
 
             # Annotate, remember that we need the `center` reversed.
             cv2.circle(m_img_tr, center=(pix0[1],pix0[0]), radius=5, color=GREEN, thickness=2)
@@ -345,9 +353,9 @@ def run_trial(args, count, fa, dc, T_cam_ee):
             )
 
             # Create stacked image for visualization.
-            stacked = np.hstack((m_img_tr, c_img_proc))
-            cv2.imwrite('test.png', stacked)  # shows c_img_proc
             if False:
+                stacked = np.hstack((m_img_tr, c_img_proc))
+                cv2.imwrite('test.png', stacked)  # shows c_img_proc
                 wname = 'pix0: {}, pix1: {}'.format(pix0, pix1)
                 cv2.imshow(wname, stacked)  # doesn't show c_img_proc??
                 key = cv2.waitKey(0)  # Press ESC
@@ -403,7 +411,7 @@ def run_trial(args, count, fa, dc, T_cam_ee):
         print('Place: {}  --> World {}'.format(pix1, place_world))
         cv2.circle(c_img_bbox, center=(pick[1],pick[0]), radius=5, color=GREEN, thickness=2)
         cv2.circle(c_img_bbox, center=(place[1],place[0]), radius=5, color=BLUE, thickness=2)
-        cv2.imwrite('c_img_pre_action.png', c_img_bbox)
+        #cv2.imwrite('c_img_pre_action.png', c_img_bbox)
 
         # Show pre-act image. Press ESC. Then press ENTER (or CTRL+C to abort).
         wname = 'pick: {} --> {}, place: {} --> {}'.format(pix0, pick, pix1, place)
@@ -412,27 +420,51 @@ def run_trial(args, count, fa, dc, T_cam_ee):
         cv2.destroyAllWindows()
         DU.wait_for_enter()  # PRESS ENTER
 
+        # Save repeatedly so that we can save trials in prog or which failed.
+        act_dict = {
+            'pix0': pix0,    # pick pixels on (160,320)
+            'pix1': pix1,    # place pixels on (160,320)
+            'pick': pick,    # pick pixels on (720,1280)
+            'place': place,  # place pixels on (720,1280)
+            'pick_w': pick_world,
+            'place_w': place_world,
+            'z_rot': z_rot,
+        }
+        trial_info['act_dict'].append(act_dict)
+        save_stuff(args, trial_info)
+
         # The moment of truth ... :-)
         DU.pick_and_place(fa, pick_world, place_world, z_rot, starts_at_top=True)
 
-        # Save repeatedly so that we can save trials in prog or which failed.
-        #save_stuff(trial_info)
-
-    print(f'Done with trial {count}, see the savedir.')
-    save_stuff(trial_info)
+    # Save the _final_ images. The pick and place should move robot back to top.
+    img_dict = dc.get_images()
+    trial_info['img_dict'].append(img_dict)
+    save_stuff(args, trial_info)
 
 
 if __name__ == "__main__":
+    # Save within args.outdir subdirs: gctn_{k}, human_{k}, random_{k}, etc.
     p = argparse.ArgumentParser()
-    p.add_argument('--outdir', type=str, default='data/')
+    p.add_argument('--outdir', type=str, default='data')
     p.add_argument('--method', type=str, default='random')
     p.add_argument('--max_T', type=int, default=8)
     args = p.parse_args()
 
-    # Which trial?
+    # Which trial? Assume we count and then add to data dir.
     assert os.path.exists(args.outdir), args.outdir
-    count = 0
-    date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    trial_head = join(args.outdir, args.method)
+    if not os.path.exists(trial_head):
+        os.mkdir(trial_head)
+    count = len([x for x in os.listdir(trial_head) if 'trial_' in x])
+    args.date = datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+    suffix = f'trial_{str(count).zfill(3)}__{args.date}'
+    args.savedir = join(trial_head, suffix)
+
+    # Dump info to the save dir ASAP.
+    os.mkdir(args.savedir)
+    args.savejson = join(args.savedir, 'args.json')
+    with open(args.savejson, 'w') as fh:
+        json.dump(vars(args), fh, indent=4)
 
     # random: pick any location on the cable.
     # gctn: must have one running on my other machine
@@ -451,6 +483,9 @@ if __name__ == "__main__":
     print(f'Loaded transformation from {filename}:\n{T_cam_ee}\n')
 
     print('='*100)
+    print('='*100)
     print(f'RUNNING TRIAL {count}!!')
     print('='*100)
+    print('='*100)
     run_trial(args, count, fa=fa, dc=dc, T_cam_ee=T_cam_ee)
+    print(f'Done with trial! See the savedir:\n\t{args.savedir}')

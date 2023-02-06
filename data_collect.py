@@ -87,7 +87,7 @@ class DataCollector:
                 self.crop_h, self.crop_w))
 
         # Get masked images. See 'segmentor.py' scripts. Updated 01/30.
-        self.mask_lo = np.array([ 90,  50,   0], dtype='uint8')
+        self.mask_lo = np.array([ 90,  60,   0], dtype='uint8')
         self.mask_up = np.array([255, 255, 255], dtype='uint8')
         self.mask_im = None
 
@@ -201,6 +201,7 @@ class DataCollector:
 
     def get_images(self):
         """Helps to clarify which images mean what."""
+        time.sleep(0.1)
         images = dict(
             color_raw=self.c_image,
             color_proc=self.c_image_crop,  # this is also resized

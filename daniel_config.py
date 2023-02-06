@@ -52,8 +52,8 @@ GRIP_RELEASE = 0.030  # smaller than GRIP_OPEN to avoid affecting cables too muc
 
 # The z height BEFORE and then DURING a pick.
 Z_PRE_PICK  = 0.070
-Z_PRE_PICK2 = 0.080  # lifting w/cable seems to require a little more
-Z_PICK      = 0.030
+Z_PRE_PICK2 = 0.080  # 02/05: lifting w/cable seems to require a little more
+Z_PICK      = 0.025  # 02/06, seems like 0.030 is too high
 Z_PRE_PLACE = 0.070
 Z_PLACE     = 0.035
 
