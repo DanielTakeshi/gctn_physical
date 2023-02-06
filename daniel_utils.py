@@ -12,7 +12,16 @@ import yaml
 import daniel_config as DC
 
 
-def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
+def bgr_to_rgb(img):
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+
+def rgb_to_bgr(img):
+    return cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+
+def uv_to_world_pos(T_BC, u, v, z, return_meters=False, camera_ns='k4a',
+        debug_print=False):
     """Transform from image coordinates and depth to world coordinates.
 
     Copied this from my 'mixed media' code, but likely have to change.
@@ -47,7 +56,8 @@ def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
     x = (v - u0) * z / fx
     y = (u - v0) * z / fy
 
-    # If x,y,z came from scalars, makes (1,4) matrix. Need to test for others.
+    # If x,y,z came from scalars, makes (1,4) matrix.
+    # For others it produces (N,4) data for N data points.
     cam_coords = np.stack([x, y, z, one], axis=1)
 
     # TODO(daniel): which one? The second one?
@@ -55,16 +65,13 @@ def uv_to_world_pos(T_BC, u, v, z, camera_ns='k4a', debug_print=False):
     world_coords = cam_coords.dot(matrix_camera_to_world.T)
 
     if debug_print:
-        # Camera axis has +x pointing to me, +y to wall, +z downwards.
-        #print('\nMatrix camera to world')
-        #print(matrix_camera_to_world)
-        #print('\n(inverse of that matrix)')
-        #print(np.linalg.inv(matrix_camera_to_world))
         print('\n(cam_coords before converting to world)')
         print(cam_coords)
-        print('')
 
-    return world_coords  # (n,4) but ignore last row
+    # Returns (N,4). Ignore the last column.
+    if return_meters:
+        world_coords /= 1000.0
+    return world_coords
 
 
 def load_transformation(filename, as_rigid_transform=False):
@@ -110,9 +117,9 @@ def get_rigid_transform_from_7D(nparr):
 
 def wait_for_enter():
     if sys.version_info[0] < 3:
-        raw_input('Press Enter to continue:')
+        raw_input('Enter to continue:')
     else:
-        input('Press Enter to continue:')
+        input('Enter to continue, CTRL+C to exit:')
 
 
 def triplicate(img, to_int=False):
@@ -148,8 +155,9 @@ def process_depth(orig_img, cutoff=2000):
         return new_img
 
     def depth_scaled_to_255(img):
-        if np.max(img) <= 0.0:
-            print('Warning, np.max: {:0.3f}'.format(np.max(img)))
+        # This was being printed constantly during rollouts.
+        #if np.max(img) <= 0.0:
+        #    print('Warning, np.max: {:0.3f}'.format(np.max(img)))
         img = 255.0/np.max(img)*img
         img = np.array(img,dtype=np.uint8)
         for i in range(3):
@@ -159,6 +167,15 @@ def process_depth(orig_img, cutoff=2000):
     img = depth_to_3ch(img, cutoff)  # all values above 255 turned to white
     img = depth_scaled_to_255(img)   # correct scaling to be in [0,255) now
     return img
+
+
+def sample_distribution(prob, n_samples=1):
+    """Sample data point from a custom distribution."""
+    flat_prob = np.ndarray.flatten(prob) / np.sum(prob)
+    rand_ind = np.random.choice(
+        np.arange(len(flat_prob)), n_samples, p=flat_prob, replace=False)
+    rand_ind_coords = np.array(np.unravel_index(rand_ind, prob.shape)).T
+    return np.int32(rand_ind_coords.squeeze())
 
 
 def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
@@ -200,38 +217,133 @@ def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
     )
 
 
-def pick_only(fa, pix0, img_c, z_delta):
-    """A pick primitive to test things.
-
-    Take note of the ordering in pix0 and pix1.
-    This should also probably determine the rotation angles.
-
-    fa: FrankaArm
-    pix0: tuple of picking pixels.
-    img_c: current image (assume a binary mask).
-    z_delta: delta of height for picking and placing.
-    """
-    assert z_delta > 0, z_delta
-
-    raise NotImplementedError
-
-
-def pick_and_place(fa, pix0, pix1, img_c, img_g, z_delta):
+def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
     """Our pick and place action primitive.
 
     Take note of the ordering in pix0 and pix1.
     This should also probably determine the rotation angles.
 
-    fa: FrankaArm
-    pix0: tuple of picking pixels.
-    pix1: tuple of placing pixels.
-    img_c: current image (assume a binary mask).
-    img_g: goal image (assume a binary mask).
-    z_delta: delta of height for picking and placing.
-    """
-    assert z_delta > 0, z_delta
+    See daniel_config for details. Reason why I need to do this is that it
+    might be more precise if we have shorter length movements to get back to
+    the top pose (for which I want to get an accurate and consistent pose).
+    Also sometimes I get errors with EE control if I move too much.
 
-    raise NotImplementedError
+    For current (working) values of the delta terms, the angle of rotation, z
+    offsets, etc., please see my Notion.
+
+    Parameters
+    ----------
+    fa: FrankaArm
+    pick_w: World coords of picking.
+    place_w: World coords of placing.
+    z_delta: offset for rotation (this is a hack for us). The 'default' rotation
+        is when the camera faces to Eddie's desk, so it's like a '90 deg' rot.
+        So, a z_delta=-90 would cause the camera to face my desk but that also
+        increases the risks of kinematic errors.
+    """
+    def get_duration(x_delta, y_delta):
+        #p0_norm = np.linalg.norm(np.array([p0_x_delta, p0_y_delta]))
+        #p1_norm = np.linalg.norm(np.array([p1_x_delta, p1_y_delta]))
+        #p0_dur = int(max(3, p0_norm*20))
+        #p1_dur = int(max(3, p1_norm*20))
+        #print('(First)  Pull norm: {:0.3f}, p0_dur: {}'.format(p0_norm, p0_dur))
+        #print('(Second) Pull norm: {:0.3f}, p1_dur: {}\n'.format(p1_norm, p1_dur))
+        # We have to change the above.
+        pass
+
+    # TODO(daniel) -- need to fix a lot of the durations. Shouldn't be hard.
+    p0_dur = 5
+    p1_dur = 5
+
+    # TODO(daniel): check positional bounds.
+    # (we should probably add safety checks)
+
+    # Go to top, open/close grippers.
+    if not starts_at_top:
+        print(f'\nMove to JOINTS_TOP:\n{DC.JOINTS_TOP}')
+        wait_for_enter()
+        fa.goto_joints(DC.JOINTS_TOP, duration=10, ignore_virtual_walls=True)
+        fa.goto_gripper(DC.GRIP_OPEN)
+        fa.close_gripper()
+
+    # Go to (first) waypoint.
+    print(f'\nMove to JOINTS_WP1:\n{DC.JOINTS_WP1}')
+    fa.goto_joints(DC.JOINTS_WP1, duration=5)
+
+    # Go to (second) waypoint, use a longer duration.
+    print(f'\nMove to JOINTS_WP2:\n{DC.JOINTS_WP2}')
+    fa.goto_joints(DC.JOINTS_WP2, duration=10)
+
+    # Rotate about z axis.
+    print(f'\nRotate by z delta: {z_delta}')
+    rotate_EE_one_axis(fa, deg=z_delta, axis='z', use_impedance=True, duration=5)
+
+    # Translate to be above the picking point.
+    prepick_w = np.copy(pick_w)
+    prepick_w[2] = DC.Z_PRE_PICK
+    T_ee_world = fa.get_pose()
+    T_ee_world.translation = prepick_w
+    print(f'\nTranslate to be above picking point, press ENTER:\n{T_ee_world}')
+    fa.goto_pose(T_ee_world, duration=p0_dur)
+
+    # Open the gripper.
+    fa.goto_gripper(width=DC.GRIP_OPEN)
+
+    # Lower to actually grasp.
+    picking_w = np.copy(pick_w)
+    picking_w[2] = DC.Z_PICK
+    T_ee_world.translation = picking_w
+    print(f'\nLower to grasp: {T_ee_world}')
+    fa.goto_pose(T_ee_world)
+
+    # Close the gripper. Careful! Need `grasp=True`.
+    fa.goto_gripper(width=DC.GRIP_CLOSE, grasp=True, force=10.)
+
+    # Return to pre-pick. NOTE(daniel): maybe due to extra weight, I had to
+    # add some more height to make it raise sufficiently.
+    prepick_w_2 = np.copy(pick_w)
+    prepick_w_2[2] = DC.Z_PRE_PICK2
+    T_ee_world.translation = prepick_w_2
+    print(f'\nBack to pre-pick: {T_ee_world}')
+    fa.goto_pose(T_ee_world)
+
+    # Go to the pre-placing point.
+    # NOTE(daniel): should be based on the image/action, using fake values.
+    preplace_w = np.copy(place_w)
+    preplace_w[2] = DC.Z_PRE_PLACE
+    T_ee_world.translation = preplace_w
+    print(f'\nTranslate to be above PLACING point: {T_ee_world}')
+    fa.goto_pose(T_ee_world, duration=p1_dur)
+
+    # Lower to place gently.
+    placing_w = np.copy(place_w)
+    placing_w[2] = DC.Z_PLACE
+    T_ee_world.translation = placing_w
+    print(f'\nLower to place: {T_ee_world}')
+    fa.goto_pose(T_ee_world)
+
+    # Open the gripper.
+    print('\nOpening gripper (should release cable)...')
+    fa.goto_gripper(width=DC.GRIP_RELEASE)
+
+    # Return to pre-placing point. NOTE(daniel): if remove lowering, remove this.
+    T_ee_world.translation = preplace_w
+    print(f'\nReturn to pre-placing: {T_ee_world}')
+    fa.goto_pose(T_ee_world)
+
+    # Return to (second) waypoint. This should revert the rotation.
+    print(f'\nMove to JOINTS_WP2:\n{DC.JOINTS_WP2}')
+    fa.goto_joints(DC.JOINTS_WP2, duration=6)
+
+    # Return to (first) waypoint, use a longer duration.
+    print(f'\nMove to JOINTS_WP1:\n{DC.JOINTS_WP1}')
+    fa.goto_joints(DC.JOINTS_WP1, duration=10)
+
+    # Return to top.
+    print(f'\nMove to JOINTS_TOP:\n{DC.JOINTS_TOP}')
+    fa.goto_joints(DC.JOINTS_TOP, duration=5, ignore_virtual_walls=True)
+
+    return fa
 
 
 if __name__ == "__main__":

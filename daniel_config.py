@@ -44,8 +44,18 @@ JOINTS_WP2 = np.array([0.4127, 0.2938, -0.2986, -2.4853, 0.0676, 2.7421, -0.7049
 # -------------------------------------------------------------------------------- #
 # Other parameters for Transporters experiments.
 # -------------------------------------------------------------------------------- #
-GRIP_OPEN = 0.030
-GRIP_CLOSE = 0.010
+
+# The closing doesn't quite matter that much as the frankapy should stop excess force.
+GRIP_OPEN    = 0.040
+GRIP_CLOSE   = 0.010
+GRIP_RELEASE = 0.030  # smaller than GRIP_OPEN to avoid affecting cables too much
+
+# The z height BEFORE and then DURING a pick.
+Z_PRE_PICK  = 0.070
+Z_PRE_PICK2 = 0.080  # lifting w/cable seems to require a little more
+Z_PICK      = 0.030
+Z_PRE_PLACE = 0.070
+Z_PLACE     = 0.035
 
 # From Feb 05: test_pick_and_place.py
 LIM_X_LO =  0.31

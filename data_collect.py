@@ -135,6 +135,7 @@ class DataCollector:
         # Make this change to get it working in Python3.
         #self.d_image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="32FC1")
         self.d_image = ros_numpy.numpify(msg).astype(np.float32)
+        #dimg_copy = np.copy(self.d_image)
         self.d_image_proc = DU.process_depth(self.d_image)  # not cropped
         self.d_image_proc_crop = self._process_depth(self.d_image)  # cropped
 
@@ -202,10 +203,19 @@ class DataCollector:
         """Helps to clarify which images mean what."""
         images = dict(
             color_raw=self.c_image,
+            color_proc=self.c_image_crop,  # this is also resized
+            color_bbox=self.c_image_bbox,
             depth_raw=self.d_image,
             depth_proc=self.d_image_proc,
+            mask_img=self.mask_im,
         )
         return images
+
+    def get_crop_x(self):
+        return self.crop_x
+
+    def get_crop_y(self):
+        return self.crop_y
 
 
 if __name__ == "__main__":
