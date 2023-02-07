@@ -1,6 +1,7 @@
 # From Daniel
 images/
 data/
+demos/
 *.png
 *.swo
 *.swp

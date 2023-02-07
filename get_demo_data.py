@@ -4,6 +4,8 @@ I collected in early December. Remember, we do have to manually label.
 
 Tips:
 
+0. Don't forget to save the beginning image! We hit CTRL+C when we are DONE.
+
 1. Do this for ONE EPISODE, then stop and move the robot with e-stop. Thus each
 time we do this the robot should have to manually reset. This will improve the
 robustness of the data to noise in the robot's motion since the camera position
@@ -22,6 +24,10 @@ be hard combined with rotations.
 
 5. After each trial, inspect the resulting images IMMEDIATELY! If it looks bad,
 delete the directory so the number can stay consistent.
+
+6. When performing the demonstration, do not rotate my finger grasp after the
+initial grasp! Just have it move in the same direction, that's probably how it
+will be for the robot.
 """
 import os
 from os.path import join
