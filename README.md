@@ -14,9 +14,20 @@ python main.py [args]
 
 See that script for more, and `daniel_utils.py` for a bunch of utility methods.
 
+Run this to get demonstrations:
+
+```
+python get_demo_data.py
+```
 
 See the `scripts/` directory (and the associated README) for testing a bunch of
 things.
+
+Directories:
+
+- `data/` is meant for output from different methods.
+- `demos/` is meant for saving demonstration data.
+- `images/` is meant for debugging `data_collector.py`'s image querying.
 
 ## My Setup
 

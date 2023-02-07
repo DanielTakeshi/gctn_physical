@@ -151,8 +151,7 @@ class DataCollector:
         Currently we're going to support bounding boxes (for visualization) but
         normally we want to crop it and then resize. I think cropping first is
         critical to a 1:2 ratio, then we can resize. Tune the crop parameters.
-        The starting RGB image shape is (720,1280,3). As of 01/27, cropping to
-        (460,920,3).
+        The starting RGB image shape is (720,1280,3).
         """
         if bbox_no_crop:
             cimg = self.put_bbox_on_img(

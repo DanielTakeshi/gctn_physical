@@ -266,7 +266,7 @@ def save_stuff(args, trial_info):
         pickle.dump(trial_info, fh)
 
 
-def run_trial(args, count, fa, dc, T_cam_ee):
+def run_trial(args, fa, dc, T_cam_ee):
     """Runs one trial.
 
     Also supports a mode where a human picks at the pixel for the robot to go
@@ -291,6 +291,8 @@ def run_trial(args, count, fa, dc, T_cam_ee):
     trial_info = defaultdict(list)
 
     for t in range(args.max_T):
+        print(f'\n**** On time t={t+1} (1-indexed) out of {args.max_T}. ****')
+
         # Start with moving robot to home position, compute EE pose.
         print(f'\nMove to JOINTS_TOP:\n{DC.JOINTS_TOP}')
         fa.goto_joints(DC.JOINTS_TOP, duration=10, ignore_virtual_walls=True)
@@ -487,5 +489,5 @@ if __name__ == "__main__":
     print(f'RUNNING TRIAL {count}!!')
     print('='*100)
     print('='*100)
-    run_trial(args, count, fa=fa, dc=dc, T_cam_ee=T_cam_ee)
+    run_trial(args, fa=fa, dc=dc, T_cam_ee=T_cam_ee)
     print(f'Done with trial! See the savedir:\n\t{args.savedir}')
