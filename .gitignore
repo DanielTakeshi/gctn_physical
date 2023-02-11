@@ -5,7 +5,8 @@ demos/
 *.png
 *.swo
 *.swp
-
+real_input/
+real_output/
 
 
 # Byte-compiled / optimized / DLL files

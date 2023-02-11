@@ -37,6 +37,10 @@ STACKED_IMAGES  = []
 WIDTH = 320
 HEIGHT = 160
 
+# Put input and output here for real experiments with GCTN.
+REAL_INPUT = 'real_input/'
+REAL_OUTPUT = 'real_output/'
+
 
 # TODO(daniel): adapted from GCTN code, should test if we want human labels here.
 def click_and_crop(event, x, y, flags, param):
@@ -266,7 +270,7 @@ def save_stuff(args, trial_info):
         pickle.dump(trial_info, fh)
 
 
-def run_trial(args, fa, dc, T_cam_ee):
+def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
     """Runs one trial.
 
     Also supports a mode where a human picks at the pixel for the robot to go
@@ -285,8 +289,7 @@ def run_trial(args, fa, dc, T_cam_ee):
     in the (320,640) image turns into a pixel of (DC.crop_x, DC.crop_y) in the
     original d_img and that's where we can query depth. I think this might work.
 
-    TODO(daniel): need to supply goal images!!!!!!! But that can come later once
-    we have done more data collection.
+    TODO(daniel): need to supply goal images!!!!!!!
     """
     trial_info = defaultdict(list)
 
@@ -363,7 +366,45 @@ def run_trial(args, fa, dc, T_cam_ee):
                 key = cv2.waitKey(0)  # Press ESC
 
         elif args.method == 'gctn':
-            raise NotImplementedError()
+            # ---------------------------------------------------------------------- #
+            # Look at `REAL_INPUT` and `REAL_OUTPUT` from `perform_physical_rollout()`
+            # https://github.com/DanielTakeshi/pybullet-def-envs/blob/physical/load.py
+            # These 'REAL' dirs are SEPARATE from the logs where we store `trial_info`,
+            # but `trial_info` should have all the same information anyway.
+            # ---------------------------------------------------------------------- #
+            # Somewhat annoyingly, we have to pass in triplicated images to GCTN. But
+            # in GCTN when we _process_ the masks, we only take the 1st channel! :/
+            # ---------------------------------------------------------------------- #
+            mask_obs = m_img_tr[None,...]
+
+            # TODO(daniel): need to sample `m_img_g`!!
+            print('WARNING: WE NEED TO GET GOAL MASKS')
+            mask_goal = np.array(np.random.rand(1, 160, 320, 3) > 0.5).astype(np.uint8)
+
+            assert mask_obs.shape  == (1, 160, 320, 3), mask_obs.shape
+            assert mask_goal.shape == (1, 160, 320, 3), mask_goal.shape
+
+            # Clunky: after we do this, we need to scp this data over to `takeshi`.
+            in_fname = join(REAL_INPUT, f'in_{str(t).zfill(2)}.pkl')
+            gctn_input = {'obs': mask_obs, 'goal': mask_goal}
+            with open(in_fname, 'wb') as fh:
+                pickle.dump(gctn_input, fh)
+            print(f'Saved input to GCTN: {in_fname} ...')
+
+            # Wait for the correct data for time `t` (0-indexed).
+            out_fname = join(REAL_OUTPUT, f'out_{str(t).zfill(2)}.pkl')
+            print(f'Waiting for output from GCTN: {out_fname} ...')
+            while not os.path.exists(out_fname):
+                pass
+
+            # Extract correct data. TODO(daniel): check transposes, etc.
+            with open(out_fname, 'rb') as fh:
+                gctn_dict = pickle.load(fh)
+            pix0 = gctn_dict['params']['pixels0']
+            pix1 = gctn_dict['params']['pixels1']
+
+            # Actually we should save all this in its own output.
+            trial_info['gctn_dict'].append(gctn_dict)
 
         else:
             raise ValueError(args.method)
@@ -472,6 +513,10 @@ if __name__ == "__main__":
     # gctn: must have one running on my other machine
     assert args.method in ['random', 'human', 'gctn']
 
+    # If GCTN, we need a way to sample goal.
+    if args.method == 'gctn':
+        print('We need to get a goal! Hurry up!!')
+
     print(f'Creating FrankaArm...')
     fa = FrankaArm()
     fa.close_gripper()
@@ -480,7 +525,8 @@ if __name__ == "__main__":
     dc = DataCollector()
 
     # The calibration file, copied from `/<HOME>/.ros/easy_handeye`.
-    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # from 02/05/2022
+    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # from 02/05/2022
+    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v05.yaml'  # from 02/10/2022
     T_cam_ee = DU.load_transformation(filename, as_rigid_transform=True)
     print(f'Loaded transformation from {filename}:\n{T_cam_ee}\n')
 
