@@ -510,16 +510,15 @@ def determine_rotation_from_mask(mask, pick, place=None):
     # ------------------------------------------------------------------------ #
     # Last parts: need to consider the existing workspace, limits, etc.
     # ------------------------------------------------------------------------ #
-    # Take into account how we start from a '90 deg' rotation. I think this is
-    # simpler than I thought, because the default degree is just angle_deg=0.
-    # Also we only get positive values from the rad2deg it seems.
-    # ------------------------------------------------------------------------ #
-    assert angle_deg[0] > 0, angle_deg
-    if angle_deg[0] >= 95:
-        angle_deg_revised = angle_deg[0] - 180.
-        angle_deg_revised = max(angle_deg_revised, -30)  # not too much
-    else:
-        angle_deg_revised = angle_deg[0]  # no need for changes :)
+    angle_deg = angle_deg[0]  # length one array
+    assert 0 <= angle_deg < 180.
+
+    # Offset by 90, cap negative at -30.
+    angle_deg_new = angle_deg - 90.
+    angle_deg_new = max(angle_deg_new, -30)
+
+    # Negate everything since we counter-clockwise rotation is negative.
+    angle_deg_revised = -angle_deg_new
 
     cv2.putText(
         img=mask_copy,
@@ -532,6 +531,7 @@ def determine_rotation_from_mask(mask, pick, place=None):
     )
 
     mask_copy = rgb_to_bgr(mask_copy)
+    cv2.imwrite('mask_contours_all_info_orig.png', mask_copy)
     stuff['mask_contours_crop_all_info_orig'] = mask_copy
     stuff['angle_deg_revised'] = angle_deg_revised
     return stuff

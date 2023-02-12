@@ -215,14 +215,19 @@ def get_pix_and_rotation(mask):
     # Take into account how we start from a '90 deg' rotation. I think this is
     # simpler than I thought, because the default degree is just angle_deg=0.
     # Also we only get positive values from the rad2deg it seems.
-    assert angle_deg[0] > 0, angle_deg
-    if angle_deg[0] >= 95:
-        angle_deg_revised = angle_deg[0] - 180.
-        angle_deg_revised = max(angle_deg_revised, -30)  # not too much
-    else:
-        angle_deg_revised = angle_deg[0]  # no need for changes :)
-    print(f'Our angle revised: {angle_deg_revised:0.2f}')
+    # Wait, no, the default starting pose has grippers opening in the perpendicular
+    # direction that I had in mind, oops.
+    angle_deg = angle_deg[0]  # length one array
+    assert 0 <= angle_deg < 180.
 
+    # Offset by 90, cap negative at -30.
+    angle_deg_new = angle_deg - 90.
+    angle_deg_new = max(angle_deg_new, -30)
+
+    # Negate everything since we counter-clockwise rotation is negative.
+    angle_deg_revised = -angle_deg_new
+
+    print(f'Our angle revised: {angle_deg_revised:0.2f}')
     cv2.putText(
         img=mask_copy,
         text="{:.2f} (revised)".format(angle_deg_revised),
@@ -242,7 +247,7 @@ def get_pix_and_rotation(mask):
 
 
 if __name__ == "__main__":
-    np.random.seed(4)
+    np.random.seed(5)
 
     # Just get these from `data_collector.py`.
     #img_path = 'scripts/mask_example_01.png'
