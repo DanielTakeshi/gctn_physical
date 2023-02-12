@@ -191,7 +191,7 @@ def get_pix_and_rotation(mask):
     angle_deg   = np.rad2deg(angle_2_x)
     cv2.putText(
         img=mask_copy,
-        text="{} (rad)".format(angle_2_x),
+        text="{:.2f} (rad)".format(angle_2_x[0]),
         org=(20, 20),
         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
         fontScale=0.5,
@@ -200,30 +200,45 @@ def get_pix_and_rotation(mask):
     )
     cv2.putText(
         img=mask_copy,
-        text="{} (deg)".format(angle_deg),
-        org=(200, 20),
+        text="{:.2f} (deg)".format(angle_deg[0]),
+        org=(120, 20),
         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
         fontScale=0.5,
         color=BLUE,
         thickness=1
     )
 
+    # Take into account how we start from a '90 deg' rotation. I think this is
+    # simpler than I thought, because the default degree is just angle_deg=0.
+    # Also we only get positive values from the rad2deg it seems.
+    assert angle_deg[0] > 0, angle_deg
+    if angle_deg[0] >= 95:
+        angle_deg_revised = angle_deg[0] - 180.
+        angle_deg_revised = max(angle_deg_revised, -30)  # not too much
+    else:
+        angle_deg_revised = angle_deg[0]  # no need for changes :)
+    print(f'Our angle revised: {angle_deg_revised:0.2f}')
+
+    cv2.putText(
+        img=mask_copy,
+        text="{:.2f} (revised)".format(angle_deg_revised),
+        org=(240, 20),
+        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+        fontScale=0.5,
+        color=BLUE,
+        thickness=1
+    )
+
+    # The usual.
     mask_copy = DU.rgb_to_bgr(mask_copy)
     cv2.imshow('mask_contours_all_info_orig', mask_copy)
     cv2.waitKey(0)
     cv2.imwrite('mask_contours_all_info_orig.jpg', mask_copy)
     cv2.destroyAllWindows()
-    # ------------------------------------------------------------------------ #
-
-    # Take into account how we start from a '90 deg' rotation.
-    # TODO(daniel)
-
-    # Possibly also consider rotation limits of the workspace.
-    # TODO(daniel)
 
 
 if __name__ == "__main__":
-    np.random.seed(15)
+    np.random.seed(4)
 
     # Just get these from `data_collector.py`.
     #img_path = 'scripts/mask_example_01.png'
