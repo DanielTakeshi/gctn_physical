@@ -9,3 +9,19 @@ values, so the "x offset" there is -0.01 (not -0.05 as I later set it for
 experiments). I'm not sure if that affects things? The "v03" here is also from
 that day, but has that offset, and the resulting x-transformation seems off by
 about 3-4cm.
+
+v05 on 02/10/2022 -- default Franka Desk App but seems strange.
+
+v06 on 02/12/2022 -- I put the values in Franka Desk App that I need, and these
+look better?
+
+  x = -0.080 
+    Not as much in abs value as earlier but x value for v05 was -0.070.
+    FYI, v04 had -0.098. That's almost a 2cm difference!
+  y = -0.028
+    Seems OK? v05 was -0.039 but I think that's wrong.
+  z = -0.031
+    Seems OK? At least z is generally consistent.
+
+Earlier the x value was around -0.090 reliably... maybe even close to -0.100...
+Let's stick with v06 for now.
