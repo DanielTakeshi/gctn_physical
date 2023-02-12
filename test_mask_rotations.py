@@ -23,6 +23,10 @@ def get_pix_and_rotation(mask):
     on the image. Then we worry about incorporating our z-offset.
 
     A lot of images / tests here ... we'll simplify for the 'real' code.
+
+    Parameters
+    ----------
+    mask, image with type uint8, shape (160,320,3), max val should be 255.
     """
     mask_prob = mask[:, :, 0]
 

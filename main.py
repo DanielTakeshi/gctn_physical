@@ -188,12 +188,6 @@ def _human_label(cimg_curr, dimg_curr, mask_curr, cimg_next, dimg_next, mask_nex
     return act_stuff
 
 
-# TODO(daniel): stop delaying and implement this!
-def get_z_rot(m_img, pix0, pix1):
-    """Need to get the z rotation!"""
-    return 0.0
-
-
 def get_demos_human(robot):
     """Get images from a human. Press 'y' to keep getting images.
 
@@ -446,18 +440,21 @@ def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
         # ------------------------------------------------------------------- #
 
         # Don't forget to compute a rotation! We'll annotate this to the image.
-        z_rot = get_z_rot(m_img, pix0, pix1)
+        stuff_dict = DU.determine_rotation_from_mask(mask=m_img, pick=pix0)
+        z_rot_delta = stuff_dict['angle_deg_revised']
 
         # Additional debugging.
         print('\nPlanning to execute:')
         print('Pick:  {}  --> World {}'.format(pix0, pick_world))
         print('Place: {}  --> World {}'.format(pix1, place_world))
+        print('Z rotation (delta): {:.1f}'.format(z_rot_delta))
         cv2.circle(c_img_bbox, center=(pick[1],pick[0]), radius=5, color=GREEN, thickness=2)
         cv2.circle(c_img_bbox, center=(place[1],place[0]), radius=5, color=BLUE, thickness=2)
-        #cv2.imwrite('c_img_pre_action.png', c_img_bbox)
+        cv2.imwrite('c_img_pre_action.png', c_img_bbox)
 
         # Show pre-act image. Press ESC. Then press ENTER (or CTRL+C to abort).
-        wname = 'pick: {} --> {}, place: {} --> {}'.format(pix0, pick, pix1, place)
+        wname = 'zrot: {:.1f}, pick: {} --> {}, place: {} --> {}'.format(
+                z_rot_delta, pix0, pick, pix1, place)
         cv2.imshow(wname, c_img_bbox)
         _ = cv2.waitKey(0)  # Press ESC
         cv2.destroyAllWindows()
@@ -471,13 +468,14 @@ def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
             'place': place,  # place pixels on (720,1280)
             'pick_w': pick_world,
             'place_w': place_world,
-            'z_rot': z_rot,
+            'z_rot': z_rot_delta,
         }
         trial_info['act_dict'].append(act_dict)
+        trial_info['stuff_dict_rotation'].append(stuff_dict)
         save_stuff(args, trial_info)
 
         # The moment of truth ... :-)
-        DU.pick_and_place(fa, pick_world, place_world, z_rot, starts_at_top=True)
+        DU.pick_and_place(fa, pick_world, place_world, z_rot_delta, starts_at_top=True)
 
     # Save the _final_ images. The pick and place should move robot back to top.
     img_dict = dc.get_images()

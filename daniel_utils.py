@@ -269,7 +269,7 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
     fa.goto_joints(DC.JOINTS_WP2, duration=10)
 
     # Rotate about z axis.
-    print(f'\nRotate by z delta: {z_delta}')
+    print(f'\nRotate by z delta: {z_delta:0.2f}')
     rotate_EE_one_axis(fa, deg=z_delta, axis='z', use_impedance=True, duration=5)
 
     # Translate to be above the picking point.
@@ -357,11 +357,16 @@ def determine_rotation_from_mask(mask, pick, place=None):
     -------
     A dict with this information plus a bunch of debugging images.
     """
-    assert mask.shape == (160, 320), mask.shape
     assert len(pick) == 2, pick
     p0, p1 = pick
+    assert mask.shape == (160, 320), mask.shape
+
+    # Align with `test_mask_rotations.py`, `mask` should be 3 channels, but
+    # `mask_prob` should have 1, and types should be uint8.
+    mask = mask.astype(np.uint8)  # float64 to uint8
+    mask = triplicate(mask, to_int=True)
+    mask_prob = mask[:, :, 0]
     mask_copy = np.copy(mask)
-    mask_prob = np.copy(mask)
 
     # For bounding box stuff.
     ss = 10
@@ -490,7 +495,7 @@ def determine_rotation_from_mask(mask, pick, place=None):
     )
     cv2.putText(
         img=mask_copy,
-        text="{:0.1f} (deg)".format(angle_deg[0]),
+        text="{:.1f} (deg)".format(angle_deg[0]),
         org=(120, 20),
         fontFace=cv2.FONT_HERSHEY_SIMPLEX,
         fontScale=0.5,
