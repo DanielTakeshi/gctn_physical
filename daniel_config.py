@@ -46,7 +46,7 @@ JOINTS_WP2 = np.array([0.4127, 0.2938, -0.2986, -2.4853, 0.0676, 2.7421, -0.7049
 # -------------------------------------------------------------------------------- #
 
 # The closing doesn't quite matter that much as the frankapy should stop excess force.
-GRIP_OPEN    = 0.040
+GRIP_OPEN    = 0.035  # too wide is problematic if cable has self-overlap
 GRIP_CLOSE   = 0.010
 GRIP_RELEASE = 0.030  # smaller than GRIP_OPEN to avoid affecting cables too much
 

@@ -3,6 +3,7 @@ images/
 data/
 demos/
 *.png
+*.jpg
 *.swo
 *.swp
 real_input/
