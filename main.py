@@ -28,11 +28,6 @@ RED = (255,0,0)
 GREEN = (0,255,0)
 BLUE = (0,0,255)
 
-# For `click_and_crop`.
-POINTS          = []
-CENTER_OF_BOXES = []
-STACKED_IMAGES  = []
-
 # Careful.
 WIDTH = 320
 HEIGHT = 160
@@ -40,152 +35,6 @@ HEIGHT = 160
 # Put input and output here for real experiments with GCTN.
 REAL_INPUT = 'real_input/'
 REAL_OUTPUT = 'real_output/'
-
-
-# TODO(daniel): adapted from GCTN code, should test if we want human labels here.
-def click_and_crop(event, x, y, flags, param):
-    global POINTS, CENTER_OF_BOXES, STACKED_IMAGES
-
-    assert len(STACKED_IMAGES) >= 1, STACKED_IMAGES
-    stacked_copy = np.copy(STACKED_IMAGES[-1])
-
-    # If left mouse button clicked, record the starting (x,y) coordinates
-    # and indicate that cropping is being performed
-    if event == cv2.EVENT_LBUTTONDOWN:
-        POINTS.append((x,y))
-
-    # Check to see if the left mouse button was released
-    elif event == cv2.EVENT_LBUTTONUP:
-        # Record ending (x,y) coordinates, indicate that cropping is finished, save center!
-        POINTS.append((x,y))
-
-        upper_left = POINTS[-2]
-        lower_right = POINTS[-1]
-        assert upper_left[0] < lower_right[0]
-        assert upper_left[1] < lower_right[1]
-        center_x = int(upper_left[0] + (lower_right[0]-upper_left[0])/2)
-        center_y = int(upper_left[1] + (lower_right[1]-upper_left[1])/2)
-        CENTER_OF_BOXES.append( (center_x,center_y) )
-
-        # Draw rectangle around the region of interest.
-        cv2.rectangle(img=stacked_copy,
-                      pt1=POINTS[-2],
-                      pt2=POINTS[-1],
-                      color=(0,0,255),
-                      thickness=2)
-        cv2.circle(img=stacked_copy,
-                   center=CENTER_OF_BOXES[-1],
-                   radius=3,
-                   color=(0,0,255),
-                   thickness=-1)
-        cv2.putText(img=stacked_copy,
-                    text="{}".format(CENTER_OF_BOXES[-1]),
-                    org=CENTER_OF_BOXES[-1],
-                    fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                    fontScale=0.5,
-                    color=(0,0,255),
-                    thickness=1)
-
-        # A separate pop-up shows the pixel labels, x-axis (horizontal) first.
-        cent = CENTER_OF_BOXES[-1]
-        window_name_2 = f"click_and_crop, center: {cent}. Press any key."
-        cv2.namedWindow(window_name_2, cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(window_name_2, stacked_copy.shape[1]*2, stacked_copy.shape[0]*2)
-        cv2.imshow(window_name_2, stacked_copy)
-
-
-# TODO(daniel): adapted from GCTN code, should test if we want human labels here.
-def _human_label(cimg_curr, dimg_curr, mask_curr, cimg_next, dimg_next, mask_next,
-        cimg_goal, dimg_goal, mask_goal, demo_dir, timestep):
-    """We might have to do some manual data labeling, unfortunately.
-    The current pipeline if we have to label:
-    - We go through each episode, and each time step within an episode.
-    - For each time, that's when we call this method.
-    - First, drag a box around the RGB image (top left) to get the picking spot.
-    - A pop-up window will show up to confirm that, move it aside.
-    - Second, on the ORIGINAL set of images (NOT the pop-up), in the upper right, draw
-        another box around the RGB image to get the placing spot.
-    - Then click any key to exit (assuming it looks good).
-    - Check afterwards all the debugging images. Do this BEFORE going to the next demo.
-    IF I MADE A MISTAKE, check which ones I made a mistake on and fix code (not in
-        this method) to just fix the mistaken trials. Also delete any act_{timestep}.pkl
-        that were just created.
-    Image coordinate conventions:
-    When we use `pixels0` and `pixels1`, values are (x,y) where x is positive x in
-    the usual direction (horizontal) but where +y is pointing downwards. The (0,0)
-    position will be visualized (with cv2.draw... methods) in the upper left corner.
-    https://stackoverflow.com/questions/57068928/
-    TODO(daniel) -- what about Transporters training?
-    """
-    global STACKED_IMAGES
-
-    # Show stacked image, (time t, time t+1, goal). The last action is at: t+1 = goal.
-    stacked = np.hstack((
-        np.vstack((cimg_curr, dimg_curr, mask_curr)),
-        np.vstack((cimg_next, dimg_next, mask_next)),
-        np.vstack((cimg_goal, dimg_goal, mask_goal)),
-    ))
-    STACKED_IMAGES.append(stacked)
-
-    # Apply callback and drag a box around the end-effector on the (updated!) image.
-    window_name = f'Stacked image size: {stacked.shape}'
-    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(window_name, stacked.shape[1]*2, stacked.shape[0]*2)
-    cv2.setMouseCallback(window_name, click_and_crop) # Record clicks to this window!
-    cv2.imshow(window_name, stacked)
-    key = cv2.waitKey(0)
-
-    # With two bounding boxes on our original image, we'll get the pick and place.
-    # But the pixels1 is a separate image, hence need to subtract the width (360).
-    pixels0 = CENTER_OF_BOXES[-2]
-    pixels1 = CENTER_OF_BOXES[-1]
-    pixels1 = (pixels1[0] - WIDTH, pixels1[1])
-    print(f'Actions (pixels): pick {pixels0} --> place {pixels1}')
-    assert pixels0[0] >= 0 and pixels0[1] >= 0, pixels0
-    assert pixels1[0] >= 0 and pixels1[1] >= 0, pixels1
-    assert pixels0[0] < WIDTH and pixels0[1] < HEIGHT, pixels0
-    assert pixels1[0] < WIDTH and pixels1[1] < HEIGHT, pixels1
-
-    # To copy this on the second stacked image.
-    _pixels0 = (pixels0[0] + WIDTH, pixels0[1])
-    _pixels1 = (pixels1[0] + WIDTH, pixels1[1])
-
-    # Save a debugging image which visualizes pick (blue) and place (red).
-    debug_img = np.copy(stacked)
-    debug_name = os.path.join(demo_dir, f'debug_acts_{str(timestep).zfill(3)}.png')
-
-    # For the original current image.
-    cv2.circle(img=debug_img, center=pixels0, radius=2, color=(255,0,0), thickness=-1)
-    cv2.circle(img=debug_img, center=pixels1, radius=2, color=(0,0,255), thickness=-1)
-    cv2.circle(img=debug_img, center=_pixels0, radius=2, color=(255,0,0), thickness=-1)
-    cv2.circle(img=debug_img, center=_pixels1, radius=2, color=(0,0,255), thickness=-1)
-
-    # Actually for the text we don't really care _where_ it is as long as its legible.
-    # So I'm going to shift it by -x and +y a bit.
-    cv2.putText(img=debug_img,
-                text="{}".format(pixels0),
-                org=(pixels0[0]-25, pixels0[1]+25),
-                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=0.5,
-                color=(255,0,0),
-                thickness=1)
-    cv2.putText(img=debug_img,
-                text="{}".format(pixels1),  # the real label
-                org=(_pixels1[0]-25, _pixels1[1]+25),  # has underscore, so shifted
-                fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=0.5,
-                color=(0,0,255),
-                thickness=1)
-
-    # Upscale size by 2 and then write.
-    debug_img = cv2.resize(debug_img, (debug_img.shape[1]*2, debug_img.shape[0]*2))
-    cv2.imwrite(debug_name, debug_img)
-    print(f'Saved to: {debug_name}')
-    cv2.destroyAllWindows()
-
-    # For training Transporters.
-    act_stuff = {'pixels0': pixels0, 'pixels1': pixels1}
-    return act_stuff
 
 
 def get_demos_human(robot):
@@ -289,6 +138,14 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
     in the (320,640) image turns into a pixel of (DC.crop_x, DC.crop_y) in the
     original d_img and that's where we can query depth. I think this might work.
 
+    Currently saving these keys in `trial_info`, maps each key to a list.
+        'img_dict'             --- length: # actions + 1
+        'eval_metrics'         --- length: # actions + 1
+        'gctn_dict'            --- length: # actions
+        'act_dict'             --- length: # actions
+        'stuff_dict_rotation'  --- length: # actions
+    The first two have information collected AFTER all actions.
+
     Args:
         goal_info: a dict with the goal image information.
     """
@@ -299,7 +156,7 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
     _mask_goal = mask_goal[0, :, :, 0]  # makes (160,320)
 
     for t in range(args.max_T):
-        print(f'\n**** On time t={t+1} (1-indexed) out of {args.max_T}. ****')
+        print(f'\n********* On time t={t+1} (1-index) / {args.max_T}. *********')
 
         # Start with moving robot to home position, compute EE pose.
         print(f'\nMove to JOINTS_TOP:\n{DC.JOINTS_TOP}')
@@ -328,6 +185,9 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         eval_metrics = DU.evaluate_masks(mask_curr=m_img, mask_goal=_mask_goal)
         trial_info['eval_metrics'].append(eval_metrics)
         print_eval_metrics(eval_metrics)
+
+        # SAVE HERE! If we do CTRL+C w/GCTN, then that's fine (we have all we need).
+        save_stuff(args, trial_info)
 
         # Determine the action.
         pix0, pix1 = None, None
@@ -396,11 +256,10 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
                 pickle.dump(gctn_input, fh)
             print(f'Saved input to GCTN: {in_fname} ...')
 
-            # Wait for the correct data for time `t` (0-indexed). FYI, what happens
-            # if we exit here? Will that give all info we need, since this is where
-            # I exit if I feel like we've done enough.
+            # Wait for the correct data for time `t` (0-indexed). FYI, we often exit
+            # here and that's OK as we've already saved the prior images and metrics.
             out_fname = join(REAL_OUTPUT, f'out_{str(t).zfill(2)}.pkl')
-            print(f'Waiting for output from GCTN: {out_fname} ...')
+            print(f'Waiting for output from GCTN: {out_fname}; doing CTRL+C is OK!')
             while not os.path.exists(out_fname):
                 pass
 
@@ -503,8 +362,8 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
 
     # ----------------------------------------------------------------------- #
     # Save the _final_ images. The pick and place should move robot back to top.
-    # Also save the final metrics, etc. Actually we have to be careful if we
-    # are exiting, right? Does this info get saved?
+    # Also save the final metrics, etc. However, I don't think we will use this
+    # much since CTRL+C exits the code, and we already saved beforehand.
     # ----------------------------------------------------------------------- #
     img_dict = dc.get_images()
     trial_info['img_dict'].append(img_dict)
