@@ -389,6 +389,7 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
                 pass
 
             # Extract correct data. TODO(daniel): check transposes, etc.
+            time.sleep(2)  # to prevent 'ran out of input'
             with open(out_fname, 'rb') as fh:
                 gctn_dict = pickle.load(fh)
             pix0 = gctn_dict['params']['pixels0']
@@ -488,6 +489,20 @@ if __name__ == "__main__":
     p.add_argument('--max_T', type=int, default=8)
     p.add_argument('--goal_idx', type=int, default=0)
     args = p.parse_args()
+
+    # Bells and whistles, makes data processing a bit easier.
+    files_inp = [join(REAL_INPUT,x) for x in os.listdir(REAL_INPUT) if '.pkl' in x]
+    files_out = [join(REAL_OUTPUT,x) for x in os.listdir(REAL_OUTPUT) if '.pkl' in x]
+    n_inp = len(files_inp)
+    n_out = len(files_out)
+    if n_inp > 0 or n_out > 0:
+        print(f'Removing {n_inp} and {n_out} items in in/out directories.')
+        for ff in files_inp:
+            print(f'  removing: {ff}')
+            os.remove(ff)
+        for ff in files_out:
+            print(f'  removing: {ff}')
+            os.remove(ff)
 
     # Which trial? Assume we count and then add to data dir.
     assert os.path.exists(args.outdir), args.outdir
