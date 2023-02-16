@@ -389,11 +389,18 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
                 pass
 
             # Extract correct data. TODO(daniel): check transposes, etc.
+            # Since GCTN has (320,160) images I do think we have to transpose.
             time.sleep(2)  # to prevent 'ran out of input'
             with open(out_fname, 'rb') as fh:
                 gctn_dict = pickle.load(fh)
-            pix0 = gctn_dict['params']['pixels0']
-            pix1 = gctn_dict['params']['pixels1']
+            pix0 = gctn_dict['act_pred']['params']['pixels0']
+            pix1 = gctn_dict['act_pred']['params']['pixels1']
+
+            # So that we can assign to pick, place later.
+            print(f'From GCTN: pick {pix0}, place {pix1}')
+            pix0 = np.int32([pix0[1], pix0[0]])
+            pix1 = np.int32([pix1[1], pix1[0]])
+            print(f'Revised: pick {pix0}, place {pix1}')
 
             # Actually we should save all this in its own output.
             trial_info['gctn_dict'].append(gctn_dict)
