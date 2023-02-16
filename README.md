@@ -28,6 +28,8 @@ Directories:
 - `data/` is meant for output from different methods.
 - `demos/` is meant for saving demonstration data.
 - `images/` is meant for debugging `data_collector.py`'s image querying.
+- `goals_real_cable_line_notarget/` has the goal images for test time rollouts.
+- `real_input/` and `real_output/` are for handling GCTN synchronization.
 
 ## My Setup
 

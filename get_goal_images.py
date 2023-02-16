@@ -16,7 +16,7 @@ import daniel_config as DC
 import daniel_utils as DU
 
 # Put goal images here. We'll also put in color, depth, etc.
-SAVEDIR = 'goals_real_cable_line_notarget'
+SAVEDIR = DC.GOAL_IMG_DIR
 
 
 def check_imgs(img_dict):

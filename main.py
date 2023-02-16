@@ -264,7 +264,7 @@ def save_stuff(args, trial_info):
         pickle.dump(trial_info, fh)
 
 
-def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
+def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
     """Runs one trial.
 
     Also supports a mode where a human picks at the pixel for the robot to go
@@ -283,7 +283,8 @@ def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
     in the (320,640) image turns into a pixel of (DC.crop_x, DC.crop_y) in the
     original d_img and that's where we can query depth. I think this might work.
 
-    TODO(daniel): need to supply goal images!!!!!!!
+    Args:
+        goal_info: a dict with the goal image information.
     """
     trial_info = defaultdict(list)
 
@@ -316,10 +317,7 @@ def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
         # Determine the action.
         pix0, pix1 = None, None
 
-        if args.method == 'human':
-            raise NotImplementedError()
-
-        elif args.method == 'random':
+        if args.method == 'random':
             # Randomly pick a valid point on the m_img (on the cable).
             pix0 = DU.sample_distribution(m_img)
 
@@ -368,15 +366,14 @@ def run_trial(args, fa, dc, T_cam_ee, goal_img=None):
             # ---------------------------------------------------------------------- #
             # Somewhat annoyingly, we have to pass in triplicated images to GCTN. But
             # in GCTN when we _process_ the masks, we only take the 1st channel! :/
+            # Also, both mask_obs and mask_goal should be of the same type (float64)?
+            # and both have 255 as the nonzero value (not 1).
             # ---------------------------------------------------------------------- #
             mask_obs = m_img_tr[None,...]
-
-            # TODO(daniel): need to sample `m_img_g`!!
-            print('WARNING: WE NEED TO GET GOAL MASKS')
-            mask_goal = np.array(np.random.rand(1, 160, 320, 3) > 0.5).astype(np.uint8)
-
+            mask_goal = goal_info['mask_trip'][None,...]
             assert mask_obs.shape  == (1, 160, 320, 3), mask_obs.shape
             assert mask_goal.shape == (1, 160, 320, 3), mask_goal.shape
+            assert mask_obs.dtype == mask_goal.dtype
 
             # Clunky: after we do this, we need to scp this data over to `takeshi`.
             in_fname = join(REAL_INPUT, f'in_{str(t).zfill(2)}.pkl')
@@ -489,6 +486,7 @@ if __name__ == "__main__":
     p.add_argument('--outdir', type=str, default='data')
     p.add_argument('--method', type=str, default='random')
     p.add_argument('--max_T', type=int, default=8)
+    p.add_argument('--goal_idx', type=int, default=0)
     args = p.parse_args()
 
     # Which trial? Assume we count and then add to data dir.
@@ -507,13 +505,20 @@ if __name__ == "__main__":
     with open(args.savejson, 'w') as fh:
         json.dump(vars(args), fh, indent=4)
 
-    # random: pick any location on the cable.
-    # gctn: must have one running on my other machine
-    assert args.method in ['random', 'human', 'gctn']
-
-    # If GCTN, we need a way to sample goal.
+    # random: pick any location on the cable, no need for a goal image.
+    # gctn: pick one model to run on my other machine.
+    assert args.method in ['random', 'gctn']
+    goal_info = {}
     if args.method == 'gctn':
-        print('We need to get a goal! Hurry up!!')
+        goal_img_path = join(
+            DC.GOAL_IMG_DIR, f'goal_{str(args.goal_idx).zfill(3)}_mask_trip.png'
+        )
+        assert os.path.exists(goal_img_path), goal_img_path
+        goal_mask = cv2.imread(goal_img_path).astype('float')  # need float
+        goal_info['mask_trip'] = goal_mask
+        assert goal_mask.shape == (160,320,3), goal_mask.shape
+        assert len(np.unique(goal_mask)) == 2, goal_mask
+        assert np.max(goal_mask) > 1, np.max(goal_mask)
 
     print(f'Creating FrankaArm...')
     fa = FrankaArm()
@@ -534,5 +539,5 @@ if __name__ == "__main__":
     print(f'RUNNING TRIAL {count}!!')
     print('='*100)
     print('='*100)
-    run_trial(args, fa=fa, dc=dc, T_cam_ee=T_cam_ee)
+    run_trial(args, fa=fa, dc=dc, T_cam_ee=T_cam_ee, goal_info=goal_info)
     print(f'Done with trial! See the savedir:\n\t{args.savedir}')
