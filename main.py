@@ -402,7 +402,7 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
             pix1 = np.int32([pix1[1], pix1[0]])
             print(f'Revised: pick {pix0}, place {pix1}')
 
-            # Actually we should save all this in its own output.
+            # Actually we should save ALL this in its own output.
             trial_info['gctn_dict'].append(gctn_dict)
 
         else:
@@ -455,7 +455,10 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         print('Z rotation (delta): {:.1f}'.format(z_rot_delta))
         cv2.circle(c_img_bbox, center=(pick[1],pick[0]), radius=5, color=GREEN, thickness=2)
         cv2.circle(c_img_bbox, center=(place[1],place[0]), radius=5, color=BLUE, thickness=2)
-        cv2.imwrite('c_img_pre_action.png', c_img_bbox)
+
+        # Let's save this (color images with predictions) in the target directory.
+        img_savedir = join(args.savedir, f'c_img_pre_action_time_{str(t).zfill(2)}.png')
+        cv2.imwrite(img_savedir, c_img_bbox)
 
         # Show pre-act image. Press ESC. Then press ENTER (or CTRL+C to abort).
         wname = 'zrot: {:.1f}, pick: {} --> {}, place: {} --> {}'.format(
