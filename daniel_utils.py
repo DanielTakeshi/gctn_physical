@@ -531,10 +531,46 @@ def determine_rotation_from_mask(mask, pick, place=None):
     )
 
     mask_copy = rgb_to_bgr(mask_copy)
-    cv2.imwrite('mask_contours_all_info_orig.png', mask_copy)
+    #cv2.imwrite('mask_contours_all_info_orig.png', mask_copy)
     stuff['mask_contours_crop_all_info_orig'] = mask_copy
     stuff['angle_deg_revised'] = angle_deg_revised
     return stuff
+
+
+def evaluate_masks(mask_curr, mask_goal):
+    """Since we have binary masks let's just compare pixels.
+
+    Just report which pixels are equal. Or which of the white ones are equal.
+    Actually since most of the image is just black, we might want to prioritize
+    the white pixels.
+    """
+    assert mask_curr.shape == mask_goal.shape == (160,320), \
+        f'{mask_curr.shape} {mask_goal.shape}'
+    curr_binary = mask_curr > 0
+    goal_binary = mask_goal > 0
+    white_curr = np.sum(curr_binary)
+    white_goal = np.sum(goal_binary)
+
+    # Equal, considering both white and black pixels.
+    equals = np.equal(curr_binary, goal_binary)
+
+    # Only 1 (True) if both pixels are white.
+    equals_white = np.logical_and(curr_binary, goal_binary)
+
+    metrics = {}
+
+    # This number will be high since most pixels are black.
+    metrics['pix_eq_overall'] = np.sum(equals) / np.prod(equals.shape)
+
+    # Might be a better metric to report? Divide by the minimum.
+    metrics['pix_eq_white'] = np.sum(equals_white) / min(white_curr, white_goal)
+
+    # These are mostly just FYI.
+    metrics['pix_both_white'] = np.sum(equals_white)
+    metrics['pix_white_curr'] = white_curr
+    metrics['pix_white_goal'] = white_goal
+
+    return metrics
 
 
 if __name__ == "__main__":

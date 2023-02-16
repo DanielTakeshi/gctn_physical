@@ -264,6 +264,12 @@ def save_stuff(args, trial_info):
         pickle.dump(trial_info, fh)
 
 
+def print_eval_metrics(eval_metrics):
+    print(f'Eval metrics:')
+    for key in list(eval_metrics.keys()):
+        print('  {}: {:0.3f}'.format(key, eval_metrics[key]))
+
+
 def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
     """Runs one trial.
 
@@ -287,6 +293,10 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         goal_info: a dict with the goal image information.
     """
     trial_info = defaultdict(list)
+
+    # Stays fixed at each time step.
+    mask_goal = goal_info['mask_trip'][None,...]
+    _mask_goal = mask_goal[0, :, :, 0]  # makes (160,320)
 
     for t in range(args.max_T):
         print(f'\n**** On time t={t+1} (1-indexed) out of {args.max_T}. ****')
@@ -313,6 +323,11 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         m_img = img_dict['mask_img']  # (160,320)
         m_img_tr = DU.triplicate(m_img)  # (160,320,3)
         trial_info['img_dict'].append(img_dict)
+
+        # Get evaluation metric. Index 0 since mask_goal minibatch is size 1.
+        eval_metrics = DU.evaluate_masks(mask_curr=m_img, mask_goal=_mask_goal)
+        trial_info['eval_metrics'].append(eval_metrics)
+        print_eval_metrics(eval_metrics)
 
         # Determine the action.
         pix0, pix1 = None, None
@@ -370,7 +385,6 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
             # and both have 255 as the nonzero value (not 1).
             # ---------------------------------------------------------------------- #
             mask_obs = m_img_tr[None,...]
-            mask_goal = goal_info['mask_trip'][None,...]
             assert mask_obs.shape  == (1, 160, 320, 3), mask_obs.shape
             assert mask_goal.shape == (1, 160, 320, 3), mask_goal.shape
             assert mask_obs.dtype == mask_goal.dtype
@@ -382,7 +396,9 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
                 pickle.dump(gctn_input, fh)
             print(f'Saved input to GCTN: {in_fname} ...')
 
-            # Wait for the correct data for time `t` (0-indexed).
+            # Wait for the correct data for time `t` (0-indexed). FYI, what happens
+            # if we exit here? Will that give all info we need, since this is where
+            # I exit if I feel like we've done enough.
             out_fname = join(REAL_OUTPUT, f'out_{str(t).zfill(2)}.pkl')
             print(f'Waiting for output from GCTN: {out_fname} ...')
             while not os.path.exists(out_fname):
@@ -485,9 +501,21 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         # The moment of truth ... :-)
         DU.pick_and_place(fa, pick_world, place_world, z_rot_delta, starts_at_top=True)
 
+    # ----------------------------------------------------------------------- #
     # Save the _final_ images. The pick and place should move robot back to top.
+    # Also save the final metrics, etc. Actually we have to be careful if we
+    # are exiting, right? Does this info get saved?
+    # ----------------------------------------------------------------------- #
     img_dict = dc.get_images()
     trial_info['img_dict'].append(img_dict)
+
+    # Final metrics.
+    m_img = img_dict['mask_img']
+    eval_metrics = DU.evaluate_masks(mask_curr=m_img, mask_goal=_mask_goal)
+    trial_info['eval_metrics'].append(eval_metrics)
+    print_eval_metrics(eval_metrics)
+
+    # Now save everything, overriding stuff we saved (as usual).
     save_stuff(args, trial_info)
 
 
@@ -496,7 +524,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument('--outdir', type=str, default='data')
     p.add_argument('--method', type=str, default='random')
-    p.add_argument('--max_T', type=int, default=8)
+    p.add_argument('--max_T', type=int, default=10)
     p.add_argument('--goal_idx', type=int, default=0)
     args = p.parse_args()
 
