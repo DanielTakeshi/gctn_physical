@@ -1,0 +1,18 @@
+parameters:
+  eye_on_hand: true
+  freehand_robot_movement: true
+  move_group: panda_arm
+  move_group_namespace: /easy_handeye_eye_on_hand
+  namespace: /easy_handeye_eye_on_hand/
+  robot_base_frame: panda_link0
+  robot_effector_frame: panda_EE
+  tracking_base_frame: rgb_camera_link
+  tracking_marker_frame: aruco_tag
+transformation:
+  qw: 0.7007926208828796
+  qx: -0.015663133392768713
+  qy: 0.007374363556118868
+  qz: -0.7131549533800958
+  x: -0.08588321567402649
+  y: -0.025816501698803306
+  z: -0.03090385493610188
