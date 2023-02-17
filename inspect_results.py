@@ -12,20 +12,92 @@ import numpy as np
 import daniel_config as DC
 import daniel_utils as DU
 
+# Trials which didn't record FINAL images.
+EXCLUDE = [
+    'trial_000__2023-02-16_14-54-52',  # doesn't have eval metrics as well
+    'trial_001__2023-02-16_16-05-19',
+]
 
-def inspect(dir_one_trial):
+
+def incorrect_length(dir_one):
+    _, tail = os.path.split(dir_one)
+    return tail in EXCLUDE
+
+
+def saveimg(imgdir, img, transpose=False, debugprint=False, bgr_rgb=False,
+        rgb_bgr=False):
+    """Just to reduce amount of typing, etc."""
+    assert not (bgr_rgb and rgb_bgr)
+    if bgr_rgb:
+        pass
+    if rgb_bgr:
+        pass
+    if transpose:
+        img = img.transpose(1,0,2)
+    cv2.imwrite(imgdir, img)
+    if debugprint:
+        print(f'  saved: {imgdir}')
+
+
+def inspect(dir_one):
     """Inspect one trial's directory.
 
     Might return some statistics so we can compute method-wide stats.
     Note: lengths of img_dict and eval_metrics should be 1 more than the
     others, but I didn't do this for a few initial trials.
+
+    Ideally this can be just a few images that maybe I copy and paste into
+    my Notion, or will put in a set of slides to show images.
+
+    Args:
+        dir_one: directory for one trial, starts with 'data/gctn'.
     """
-    info_dir = join(dir_one_trial, 'trial_info.pkl')
+    info_dir = join(dir_one, 'trial_info.pkl')
     with open(info_dir, 'rb') as fh:
         info = pickle.load(fh)
     print(f'Loaded info, keys: {info.keys()}')
     for key in list(info.keys()):
         print(f'key: {key}, len: {len(info[key])}')
+    num_acts = len(info['gctn_dict'])
+
+    print('Observable images, NOT output of GCTN (that is for actions).')
+    for t in range(num_acts + 1):
+        tt = str(t).zfill(2)
+        img_dict = info['img_dict'][t]
+
+        # The (160,320,3) color image. Probabaly what we'll show in slides.
+        cproc = img_dict['color_proc']
+        imgdir = join(dir_one, f'img_dict_{tt}_color_proc.png')
+        saveimg(imgdir, cproc, debugprint=True)
+
+        # But we really should also show the mask as that's the input.
+        mask = img_dict['mask_img']
+        imgdir = join(dir_one, f'img_dict_{tt}_mask_img.png')
+        saveimg(imgdir, mask, debugprint=True)
+
+    # NOTE: these have to be transposed!
+    print('GCTN attention/transport heat maps, ACTIONS, etc.')
+    for t in range(num_acts):
+        tt = str(t).zfill(2)
+        gctn_dict = info['gctn_dict'][t]
+
+        # Attention heat map.
+        hmap_attn = gctn_dict['extras']['attn_heat_bgr']
+        imgdir = join(dir_one, f'gctn_dict_{tt}_heat_attn.png')
+        saveimg(imgdir, hmap_attn, transpose=True, debugprint=True)
+
+        # Transport heat map.
+        hmap_tran_l = gctn_dict['extras']['tran_heat_bgr']
+        hmap_tran = hmap_tran_l[0]  # in case we had >1 rotations
+        imgdir = join(dir_one, f'gctn_dict_{tt}_heat_tran.png')
+        saveimg(imgdir, hmap_tran, transpose=True, debugprint=True)
+
+    print('Metric: white_pix_equal / min(# white curr, # white goal)')
+    for t in range(num_acts + 1):
+        tt = str(t).zfill(2)
+        metrics = info['eval_metrics'][t]
+        pix_eq = metrics['pix_eq_white']
+        print(f'  time {tt}: metric {pix_eq:0.3f}')
 
 
 if __name__ == "__main__":
@@ -44,5 +116,9 @@ if __name__ == "__main__":
     # while running `main.py` so there might be some duplication. But this is
     # faster to run as it doesn't involve the robot moving.
     for dir_one_trial in dirs:
+        _, tail = os.path.split(dir_one_trial)
+        if tail in EXCLUDE:
+            print(f'\nSkipping: {dir_one_trial}')
+            continue
         print(f'\nInspecting: {dir_one_trial}')
         inspect(dir_one_trial)

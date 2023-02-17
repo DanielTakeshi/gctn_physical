@@ -41,6 +41,23 @@ https://www.notion.so/Experiments-and-Results-3383c688b93941e69fa5e30b09f770ea
 **NOTE: we technically have a termination time step but we are planning to just
 use CTRL+C for exiting. This should still save the right amount of data.**
 
+The main script will save at:
+
+```
+data/gctn/trial_002__2023-02-16_17-57-33:
+total 104M
+-rw-rw-r-- 1 testseita testseita  246 Feb 16 17:57 args.json
+-rw-rw-r-- 1 testseita testseita 817K Feb 16 17:58 c_img_pre_action_time_00.png
+-rw-rw-r-- 1 testseita testseita 816K Feb 16 18:00 c_img_pre_action_time_01.png
+-rw-rw-r-- 1 testseita testseita 821K Feb 16 18:01 c_img_pre_action_time_02.png
+-rw-rw-r-- 1 testseita testseita 816K Feb 16 18:03 c_img_pre_action_time_03.png
+-rw-rw-r-- 1 testseita testseita 814K Feb 16 18:05 c_img_pre_action_time_04.png
+-rw-rw-r-- 1 testseita testseita 817K Feb 16 18:06 c_img_pre_action_time_05.png
+-rw-rw-r-- 1 testseita testseita  99M Feb 16 18:08 trial_info.pkl
+```
+
+Then later we might inspect things and populate those directories with more
+images.
 
 ## My Setup
 
