@@ -220,7 +220,7 @@ def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
     )
 
 
-def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
+def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
     """Our pick and place action primitive.
 
     Take note of the ordering in pix0 and pix1.
@@ -238,7 +238,8 @@ def pick_and_place(fa, pick_w, place_w, z_delta, starts_at_top=False):
     ----------
     fa: FrankaArm
     pick_w: World coords of picking.
-    place_w: World coords of placing.
+    place_w: World coords of placing. If this is None, we exit. Actually maybe
+        let's not do this complexity.
     z_delta: offset for rotation (this is a hack for us). The 'default' rotation
         is when the camera faces to Eddie's desk, so it's like a '90 deg' rot.
         So, a z_delta=-90 would cause the camera to face my desk but that also

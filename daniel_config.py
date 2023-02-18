@@ -73,6 +73,8 @@ LIM_Y_HI =  0.33
 # fx  0 x0
 #  0 fy y0
 #  0  0  1
+#
+# TODO: if we 'calibrate camera intrinsics', does that mean modifying this?
 
 K_matrices = {
     # From the Sawyer (scooping).
