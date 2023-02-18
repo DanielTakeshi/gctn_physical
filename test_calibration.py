@@ -34,7 +34,7 @@ HEIGHT = 160
 REAL_OUTPUT = 'real_output/'
 
 
-def test_calib(fa, dc, T_cam_ee):
+def test_calib(args, fa, dc, T_cam_ee):
     """Test calibration."""
     print(f'\nMove to JOINTS_TOP:\n{DC.JOINTS_TOP}')
     fa.goto_joints(DC.JOINTS_TOP, duration=10, ignore_virtual_walls=True)
@@ -77,17 +77,19 @@ def test_calib(fa, dc, T_cam_ee):
     cv2.imshow(wname, img)
     cv2.waitKey(0)  # Press ESC
     cv2.destroyAllWindows()
+    img_savedir = f'c_img_all_corners.png'
+    cv2.imwrite(img_savedir, img)
 
     # Convert to ints (pixels). Note: `img` is (160,320,3) but these pixel
     # values seem to be such that 1st row in `corners_pix` goes up to 320.
-    corners_pix = corners.squeeze().astype(np.uint8)
+    corners_pix = corners.squeeze().astype(np.int)
     print(f'Corners pixels: {corners_pix.shape}')
     print(corners_pix)  # (num_corners, 2)
 
     picks_pix = []
     picks_world = []
     for idx in range(corners_pix.shape[0]):
-        pix0 = np.int32( [corners_pix[idx,1], corners_pix[idx,0] ] )
+        pix0 = np.array( [corners_pix[idx,1], corners_pix[idx,0] ] ).astype(np.int)
         print(f'On corner {idx}, pick pixels: {pix0}')
         picks_pix.append(pix0)
 
@@ -124,6 +126,9 @@ def test_calib(fa, dc, T_cam_ee):
         img_savedir = f'c_img_pre_action_time_{str(idx).zfill(2)}.png'
         cv2.imwrite(img_savedir, img_copy)
 
+    if not args.runrobot:
+        return
+
     # Well actualy let's just get all the world positions, then we can do this.
     for idx in range(corners_pix.shape[0]):
         # No rotation for now.
@@ -135,9 +140,10 @@ def test_calib(fa, dc, T_cam_ee):
         print('Pick:  {}  --> World {}'.format(pix0, pick_w))
         print('Z rotation (delta): {:.1f}'.format(z_rot_delta))
 
-        # Go to first two waypoints.
-        print(f'\nMove to JOINTS_WP1:\n{DC.JOINTS_WP1}')
-        fa.goto_joints(DC.JOINTS_WP1, duration=5)
+        # Go to first two waypoints. Well we might only do this sometimes?
+        if idx == 0:
+            print(f'\nMove to JOINTS_WP1:\n{DC.JOINTS_WP1}')
+            fa.goto_joints(DC.JOINTS_WP1, duration=5)
         print(f'\nMove to JOINTS_WP2:\n{DC.JOINTS_WP2}')
         fa.goto_joints(DC.JOINTS_WP2, duration=10)
 
@@ -164,13 +170,10 @@ def test_calib(fa, dc, T_cam_ee):
 
 
 if __name__ == "__main__":
-    ## Save within args.outdir subdirs: gctn_{k}, human_{k}, random_{k}, etc.
-    #p = argparse.ArgumentParser()
-    #p.add_argument('--outdir', type=str, default='data')
-    #p.add_argument('--method', type=str, default='random')
-    #p.add_argument('--max_T', type=int, default=10)
-    #p.add_argument('--goal_idx', type=int, default=0)
-    #args = p.parse_args()
+    p = argparse.ArgumentParser()
+    p.add_argument('--runrobot', type=int, default=1,
+        help='use 0 if I just want to check the chessboard detection process')
+    args = p.parse_args()
 
     print(f'Creating FrankaArm...')
     fa = FrankaArm()
@@ -187,4 +190,4 @@ if __name__ == "__main__":
     T_cam_ee = DU.load_transformation(filename, as_rigid_transform=True)
     print(f'Loaded transformation from {filename}:\n{T_cam_ee}\n')
 
-    test_calib(fa=fa, dc=dc, T_cam_ee=T_cam_ee)
+    test_calib(args, fa=fa, dc=dc, T_cam_ee=T_cam_ee)
