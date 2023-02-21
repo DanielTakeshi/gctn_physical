@@ -4,20 +4,11 @@ We might have a chessboard or another pattern, and try to get the
 robot to move there. Some references:
 https://www.tutorialspoint.com/how-to-find-patterns-in-a-chessboard-using-opencv-python
 """
-import os
-from os.path import join
 import cv2
-import time
-import json
-import pickle
-import datetime
 import argparse
 import numpy as np
 np.set_printoptions(suppress=True, precision=4, linewidth=150)
-from collections import defaultdict
-
 from frankapy import FrankaArm
-from autolab_core import RigidTransform
 from data_collect import DataCollector
 import daniel_config as DC
 import daniel_utils as DU
@@ -35,7 +26,14 @@ REAL_OUTPUT = 'real_output/'
 
 
 def test_calib(args, fa, dc, T_cam_ee):
-    """Test calibration."""
+    """Test calibration. Careful with the `nline` and `ncol` choices.
+
+    NOTE: if using 4,3 respectively this means we detect the 4x3 inner corners
+    (12 total).  If I print a calibration grid, this ignores the corners at the
+    very edges. So compute the number of rows/columns of the full grid, and
+    subtract one. Also I can swap nline & ncol, and it's OK (it just makes the
+    drawing a different direction).
+    """
     print(f'\nMove to JOINTS_TOP:\n{DC.JOINTS_TOP}')
     fa.goto_joints(DC.JOINTS_TOP, duration=10, ignore_virtual_walls=True)
     T_ee_world = fa.get_pose()
@@ -53,12 +51,9 @@ def test_calib(args, fa, dc, T_cam_ee):
     c_img_bbox = img_dict['color_bbox']
     d_img = img_dict['depth_raw']
 
-    # NOTE: this means we detect the 4x3 inner corners (12 total). If I print a
-    # calibration grid, this ignores the cornres at the very edges. So compute the
-    # number of rows/columns of the full grid, and subtract one. Also I can swap
-    # nline & ncol, and it's OK (it just makes the drawing a different direction).
-    nline = 4
-    ncol = 3
+    # Depends on the chessboard.
+    nline = 7
+    ncol = 4
     img = np.copy(c_img_proc)
     print(f'Searching for corners on img: {img.shape}')
 
@@ -89,6 +84,8 @@ def test_calib(args, fa, dc, T_cam_ee):
     picks_pix = []
     picks_world = []
     for idx in range(corners_pix.shape[0]):
+        # pix0[0] ranges from (0,160), shorter axis.
+        # pix0[1] ranges from (0,320), longer axis.
         pix0 = np.array( [corners_pix[idx,1], corners_pix[idx,0] ] ).astype(np.int)
         print(f'On corner {idx}, pick pixels: {pix0}')
         picks_pix.append(pix0)
@@ -131,13 +128,15 @@ def test_calib(args, fa, dc, T_cam_ee):
 
     # Well actualy let's just get all the world positions, then we can do this.
     for idx in range(corners_pix.shape[0]):
-        # No rotation for now.
-        z_rot_delta = 0.0
+        pix_w = picks_pix[idx]
         pick_w = picks_world[idx]
+
+        # Hopefully it's consistent among rotations.
+        z_rot_delta = 0.0
 
         # Additional debugging.
         print('\nPlanning to execute:')
-        print('Pick:  {}  --> World {}'.format(pix0, pick_w))
+        print('Pick:  {}  --> World {}'.format(pix_w, pick_w))
         print('Z rotation (delta): {:.1f}'.format(z_rot_delta))
 
         # Go to first two waypoints. Well we might only do this sometimes?
@@ -147,16 +146,31 @@ def test_calib(args, fa, dc, T_cam_ee):
         print(f'\nMove to JOINTS_WP2:\n{DC.JOINTS_WP2}')
         fa.goto_joints(DC.JOINTS_WP2, duration=10)
 
+        # Handle rotations.
+        if z_rot_delta != 0:
+            DU.rotate_EE_one_axis(
+                fa, deg=z_rot_delta, axis='z', use_impedance=True, duration=5
+            )
+
         # Translate to be above the picking point on the chess board.
         prepick_w = np.copy(pick_w)
         prepick_w[2] = DC.Z_PRE_PICK
+        prepick_w = DC.calibration_correction(
+            pix_w=pix_w, pick_w=prepick_w, z_rot_delta=z_rot_delta
+        )
         T_ee_world = fa.get_pose()
         T_ee_world.translation = prepick_w
+        print(f'Corrected prepick_w value: {prepick_w}')
         fa.goto_pose(T_ee_world)
 
-        # Lower to be on the chess board.
-        picking_w = np.copy(pick_w)
-        picking_w[2] = DC.Z_PICK
+        # Lower to be on the chess board. Note: THIS NEEDS TO COPY `prepick_w`.
+        # Not the pick_w. Also if we want the z axis hack we have to do it here. :/
+        # Or we can adjust this to just be a delta? Sigh. Yeah let's do delta.
+        # We increment (really, decrease since it's negative) z by some amount.
+        picking_w = np.copy(prepick_w)
+        _change_z = DC.Z_PICK - DC.Z_PRE_PICK
+        picking_w[2] += _change_z
+        #picking_w[2] = DC.Z_PICK
         T_ee_world.translation = picking_w
         fa.goto_pose(T_ee_world)
 
@@ -186,7 +200,8 @@ if __name__ == "__main__":
     #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # 02/05/2023
     #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v05.yaml'  # 02/10/2023
     #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v06.yaml'  # 02/12/2023
-    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_10cm_v05.yaml'  # 02/17/2023
+    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_10cm_v04.yaml'  # 02/17/2023
+    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_10cm_v05.yaml'  # 02/17/2023
     T_cam_ee = DU.load_transformation(filename, as_rigid_transform=True)
     print(f'Loaded transformation from {filename}:\n{T_cam_ee}\n')
 

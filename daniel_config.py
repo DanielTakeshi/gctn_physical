@@ -93,4 +93,50 @@ K_matrices = {
 # -------------------------------------------------------------------------------- #
 
 
+# For the goal images to be supplied at TEST TIME.
 GOAL_IMG_DIR = 'goals_real_cable_line_notarget'
+
+
+def calibration_correction(pix_w, pick_w, z_rot_delta):
+    """Unfortunately we might have a manual calibration.
+
+    TL;DR calibration grid (chessboard), check errors, add an offset.
+    For now I'm only dealing with picking but we could correct for placing.
+    NOTE: depends on the calibration file we use. Test: `test_calibration.py`.
+
+    For now we also assume pick_w includes the z value. Well actually that
+    is not going to work as we assign the Z_PICK later ... oh well another hack.
+    Never mind actually this will work with the right z value. :)
+
+    Should be called RIGHT BEFORE we assign the translation.
+
+    Remember, pix_w[0] is the shorter axis (and pix_w[1] the longer one).
+
+    Update: we also should probably call this for our placing methods as well.
+    Just pretend that pix_w and pick_w are pixels and world coordinates for the
+    placing information. :/
+    """
+    assert len(pix_w) == 2, pix_w
+    assert len(pick_w) == 3, pick_w
+    new_pick_w = np.copy(pick_w)
+
+    # Increment x value. Seems like it should usually be incremented.
+    if (100 <= pix_w[1] <= 180) and (90 <= pix_w[0] <= 110):
+        # Except if it's within this grid, don't do anything.
+        pass
+    else:
+        new_pick_w[0] += 0.010
+
+    # Adjust y value. Seems like we need more correction at extremes.
+    if (250 <= pix_w[1]):
+        new_pick_w[1] += 0.010
+    elif (170 <= pix_w[1] < 250):
+        new_pick_w[1] += 0.005
+    else:
+        pass
+
+    # Adjust z value only at some locations.
+    if (240 <= pix_w[1]) and (140 <= pix_w[0]):
+        new_pick_w[2] -= 0.004
+
+    return new_pick_w

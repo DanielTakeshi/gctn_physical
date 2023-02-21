@@ -440,9 +440,10 @@ if __name__ == "__main__":
     dc = DataCollector()
 
     # The calibration file, copied from `/<HOME>/.ros/easy_handeye`.
-    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # from 02/05/2023
-    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v05.yaml'  # from 02/10/2023
-    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v06.yaml'  # from 02/12/2023
+    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v04.yaml'  # 02/05/2023
+    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v05.yaml'  # 02/10/2023
+    #filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_v06.yaml'  # 02/12/2023
+    filename = 'cfg/easy_handeye_eye_on_hand__panda_EE_10cm_v04.yaml'  # 02/17/2023
     T_cam_ee = DU.load_transformation(filename, as_rigid_transform=True)
     print(f'Loaded transformation from {filename}:\n{T_cam_ee}\n')
 
