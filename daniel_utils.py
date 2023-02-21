@@ -257,8 +257,12 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     # TODO(daniel): check positional bounds.
     # (we should probably add safety checks)
 
+    # If we have a very short pick-place, decrease the height.
     pixel_diff = np.linalg.norm(pix0 - pix1)
-    print(f'Pixel difference norm: {pixel_diff:0.3f}')
+    z_off_pix = 0
+    if pixel_diff <= 30:
+        z_off_pix = -0.020
+    print(f'Pixel difference norm: {pixel_diff:0.3f}, z_off_pix: {z_off_pix}')
 
     # Go to top, open/close grippers.
     if not starts_at_top:
@@ -309,8 +313,9 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     # Return to pre-pick. NOTE(daniel): maybe due to extra weight, I had to
     # add some more height to make it raise sufficiently. Also this doesn't
     # need calibration correction and I think copying pick_w is OK.
+    # 02/21/2023: now with extra z offset to reduce amount of lifting.
     prepick_w_2 = np.copy(pick_w)
-    prepick_w_2[2] = DC.Z_PRE_PICK2
+    prepick_w_2[2] = DC.Z_PRE_PICK2 - z_off_pix
     T_ee_world.translation = prepick_w_2
     print(f'\nBack to pre-pick.')
     fa.goto_pose(T_ee_world)
@@ -318,7 +323,7 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     # Go to the pre-placing point. This will need calibration correction.
     # Yes, with pick_w as the preplace... sorry for the bad naming.
     preplace_w = np.copy(place_w)
-    preplace_w[2] = DC.Z_PRE_PLACE
+    preplace_w[2] = DC.Z_PRE_PLACE - z_off_pix
     preplace_w = DC.calibration_correction(pix_w=pix1, pick_w=preplace_w)
     T_ee_world = fa.get_pose()
     curr_xy = T_ee_world.translation[:2]
@@ -328,10 +333,11 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     print(f'\nTranslate to pre-place, dur. {p1_dur}')
     fa.goto_pose(T_ee_world, duration=p1_dur)
 
-    # Lower to place gently. Copy preplace_w and adjust the z axis.
+    # Lower to place gently. Copy preplace_w and adjust the z axis. Actually
+    # if we have an offset (z_off_pix) we have to undo that here.
     placing_w = np.copy(preplace_w)
     #placing_w[2] = DC.Z_PLACE
-    placing_w[2] += (DC.Z_PLACE - DC.Z_PRE_PLACE)
+    placing_w[2] += (DC.Z_PLACE - DC.Z_PRE_PLACE) + z_off_pix
     T_ee_world.translation = placing_w
     print(f'\nLower to place.')
     fa.goto_pose(T_ee_world)
