@@ -97,7 +97,7 @@ K_matrices = {
 GOAL_IMG_DIR = 'goals_real_cable_line_notarget'
 
 
-def calibration_correction(pix_w, pick_w, z_rot_delta):
+def calibration_correction(pix_w, pick_w, z_rot_delta=None):
     """Unfortunately we might have a manual calibration.
 
     TL;DR calibration grid (chessboard), check errors, add an offset.
@@ -125,18 +125,22 @@ def calibration_correction(pix_w, pick_w, z_rot_delta):
         # Except if it's within this grid, don't do anything.
         pass
     else:
+        print('calibration: incrementing x value')
         new_pick_w[0] += 0.010
 
     # Adjust y value. Seems like we need more correction at extremes.
     if (250 <= pix_w[1]):
+        print('calibration: incrementing y value by a lot')
         new_pick_w[1] += 0.010
     elif (170 <= pix_w[1] < 250):
+        print('calibration: incrementing y value by a bit')
         new_pick_w[1] += 0.005
     else:
         pass
 
     # Adjust z value only at some locations.
     if (240 <= pix_w[1]) and (140 <= pix_w[0]):
+        print('calibration: decreasing z value')
         new_pick_w[2] -= 0.004
 
     return new_pick_w

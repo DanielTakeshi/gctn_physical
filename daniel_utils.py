@@ -220,7 +220,8 @@ def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
     )
 
 
-def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
+def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
+        starts_at_top=False):
     """Our pick and place action primitive.
 
     Take note of the ordering in pix0 and pix1.
@@ -273,9 +274,10 @@ def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
     print(f'\nRotate by z delta: {z_delta:0.2f}')
     rotate_EE_one_axis(fa, deg=z_delta, axis='z', use_impedance=True, duration=5)
 
-    # Translate to be above the picking point.
+    # Translate to be above the picking point, now w/calibration correction.
     prepick_w = np.copy(pick_w)
     prepick_w[2] = DC.Z_PRE_PICK
+    prepick_w = DC.calibration_correction(pix_w=pix0, pick_w=prepick_w)
     T_ee_world = fa.get_pose()
     curr_xy = T_ee_world.translation[:2]
     targ_xy = prepick_w[:2]
@@ -287,9 +289,10 @@ def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
     # Open the gripper.
     fa.goto_gripper(width=DC.GRIP_OPEN)
 
-    # Lower to actually grasp.
-    picking_w = np.copy(pick_w)
-    picking_w[2] = DC.Z_PICK
+    # Lower to actually grasp. We want to copy prepick_w and adjust z axis.
+    picking_w = np.copy(prepick_w)
+    #picking_w[2] = DC.Z_PICK
+    picking_w[2] += (DC.Z_PICK - DC.Z_PRE_PICK)
     T_ee_world.translation = picking_w
     print(f'\nLower to grasp.')
     fa.goto_pose(T_ee_world)
@@ -298,16 +301,19 @@ def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
     fa.goto_gripper(width=DC.GRIP_CLOSE, grasp=True, force=10.)
 
     # Return to pre-pick. NOTE(daniel): maybe due to extra weight, I had to
-    # add some more height to make it raise sufficiently.
+    # add some more height to make it raise sufficiently. Also this doesn't
+    # need calibration correction and I think copying pick_w is OK.
     prepick_w_2 = np.copy(pick_w)
     prepick_w_2[2] = DC.Z_PRE_PICK2
     T_ee_world.translation = prepick_w_2
     print(f'\nBack to pre-pick.')
     fa.goto_pose(T_ee_world)
 
-    # Go to the pre-placing point.
+    # Go to the pre-placing point. This will need calibration correction.
+    # Yes, with pick_w as the preplace... sorry for the bad naming.
     preplace_w = np.copy(place_w)
     preplace_w[2] = DC.Z_PRE_PLACE
+    preplace_w = DC.calibration_correction(pix_w=pix1, pick_w=preplace_w)
     T_ee_world = fa.get_pose()
     curr_xy = T_ee_world.translation[:2]
     targ_xy = preplace_w[:2]
@@ -316,9 +322,10 @@ def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
     print(f'\nTranslate to pre-place, dur. {p1_dur}')
     fa.goto_pose(T_ee_world, duration=p1_dur)
 
-    # Lower to place gently.
-    placing_w = np.copy(place_w)
-    placing_w[2] = DC.Z_PLACE
+    # Lower to place gently. Copy preplace_w and adjust the z axis.
+    placing_w = np.copy(preplace_w)
+    #placing_w[2] = DC.Z_PLACE
+    placing_w[2] += (DC.Z_PLACE - DC.Z_PRE_PLACE)
     T_ee_world.translation = placing_w
     print(f'\nLower to place.')
     fa.goto_pose(T_ee_world)
@@ -327,7 +334,8 @@ def pick_and_place(fa, pick_w, place_w=None, z_delta=0.0, starts_at_top=False):
     print('\nOpening gripper (should release cable)...')
     fa.goto_gripper(width=DC.GRIP_RELEASE)
 
-    # Return to pre-placing point. NOTE(daniel): if remove lowering, remove this.
+    # Return to pre-placing point. NOTE: if remove lowering, remove this. But
+    # lowering seems to help empirically. Also this doesn't need calibration.
     T_ee_world.translation = preplace_w
     print(f'\nReturn to pre-placing.')
     fa.goto_pose(T_ee_world)
@@ -514,9 +522,9 @@ def determine_rotation_from_mask(mask, pick, place=None):
     angle_deg = angle_deg[0]  # length one array
     assert 0 <= angle_deg < 180.
 
-    # Offset by 90, cap negative at -30.
+    # Offset by 90, cap negative at -25.
     angle_deg_new = angle_deg - 90.
-    angle_deg_new = max(angle_deg_new, -30)
+    angle_deg_new = max(angle_deg_new, -25)
 
     # Negate everything since we counter-clockwise rotation is negative.
     angle_deg_revised = -angle_deg_new

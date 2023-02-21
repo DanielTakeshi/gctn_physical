@@ -197,10 +197,11 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
             pix0 = DU.sample_distribution(m_img)
 
             # For placing, let's also pick a random point but not at boundary?
-            mask_place = np.zeros_like(m_img)
-            mask_place[20:160-20, 20:320-20] = 1
+            #mask_place = np.zeros_like(m_img) # we have a goal now
+            #mask_place[20:160-20, 20:320-20] = 1
             #pix1 = np.int32([80,260])  # or we can just hard-code it ...
-            pix1 = DU.sample_distribution(mask_place)
+            #pix1 = DU.sample_distribution(mask_place)
+            pix1 = DU.sample_distribution(_mask_goal)
 
             # Annotate, remember that we need the `center` reversed.
             cv2.circle(m_img_tr, center=(pix0[1],pix0[0]), radius=5, color=GREEN, thickness=2)
@@ -317,11 +318,11 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         # Use all xyz but later in pick and place, we'll use pre-selected z values.
         pick_world  = world_coords[0, :3]
         place_world = world_coords[1, :3]
-        # ------------------------------------------------------------------- #
 
         # Don't forget to compute a rotation! We'll annotate this to the image.
         stuff_dict = DU.determine_rotation_from_mask(mask=m_img, pick=pix0)
         z_rot_delta = stuff_dict['angle_deg_revised']
+        # ------------------------------------------------------------------- #
 
         # Additional debugging.
         print('\nPlanning to execute:')
@@ -358,7 +359,15 @@ def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
         save_stuff(args, trial_info)
 
         # The moment of truth ... :-)
-        DU.pick_and_place(fa, pick_world, place_world, z_rot_delta, starts_at_top=True)
+        DU.pick_and_place(
+            fa=fa,
+            pix0=pix0,
+            pix1=pix1,
+            pick_w=pick_world,
+            place_w=place_world,
+            z_delta=z_rot_delta,
+            starts_at_top=True
+        )
 
     # ----------------------------------------------------------------------- #
     # Save the _final_ images. The pick and place should move robot back to top.
@@ -421,16 +430,15 @@ if __name__ == "__main__":
     # gctn: pick one model to run on my other machine.
     assert args.method in ['random', 'gctn']
     goal_info = {}
-    if args.method == 'gctn':
-        goal_img_path = join(
-            DC.GOAL_IMG_DIR, f'goal_{str(args.goal_idx).zfill(3)}_mask_trip.png'
-        )
-        assert os.path.exists(goal_img_path), goal_img_path
-        goal_mask = cv2.imread(goal_img_path).astype('float')  # need float
-        goal_info['mask_trip'] = goal_mask
-        assert goal_mask.shape == (160,320,3), goal_mask.shape
-        assert len(np.unique(goal_mask)) == 2, goal_mask
-        assert np.max(goal_mask) > 1, np.max(goal_mask)
+    goal_img_path = join(
+        DC.GOAL_IMG_DIR, f'goal_{str(args.goal_idx).zfill(3)}_mask_trip.png'
+    )
+    assert os.path.exists(goal_img_path), goal_img_path
+    goal_mask = cv2.imread(goal_img_path).astype('float')  # need float
+    goal_info['mask_trip'] = goal_mask
+    assert goal_mask.shape == (160,320,3), goal_mask.shape
+    assert len(np.unique(goal_mask)) == 2, goal_mask
+    assert np.max(goal_mask) > 1, np.max(goal_mask)
 
     print(f'Creating FrankaArm...')
     fa = FrankaArm()
