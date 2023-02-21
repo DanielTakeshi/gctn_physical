@@ -261,7 +261,7 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     pixel_diff = np.linalg.norm(pix0 - pix1)
     z_off_pix = 0
     if pixel_diff <= 30:
-        z_off_pix = -0.020
+        z_off_pix = 0.020
     print(f'Pixel difference norm: {pixel_diff:0.3f}, z_off_pix: {z_off_pix}')
 
     # Go to top, open/close grippers.
