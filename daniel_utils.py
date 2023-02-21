@@ -193,7 +193,7 @@ def rotate_EE_one_axis(fa, deg, axis, use_impedance=True, duration=12):
     Default duration is set to be a bit long just in case.
     """
     assert np.abs(deg) <= 145., f'deg: {deg}, careful that is a lot...'
-    print(f'Rotation in EE frame by {deg} deg, axis: {axis}.')
+    print(f'Rotation in EE frame by {deg:0.2f} deg, axis: {axis}.')
     T_ee_world = fa.get_pose()
 
     if axis == 'x':
@@ -235,6 +235,9 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     For current (working) values of the delta terms, the angle of rotation, z
     offsets, etc., please see my Notion.
 
+    02/20/2023: let's adjust z offset based on how far the robot moves. I
+    think we should reduce the offset with smaller z.
+
     Parameters
     ----------
     fa: FrankaArm
@@ -253,6 +256,9 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
 
     # TODO(daniel): check positional bounds.
     # (we should probably add safety checks)
+
+    pixel_diff = np.linalg.norm(pix0 - pix1)
+    print(f'Pixel difference norm: {pixel_diff:0.3f}')
 
     # Go to top, open/close grippers.
     if not starts_at_top:
