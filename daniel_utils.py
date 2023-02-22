@@ -260,7 +260,7 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     # If we have a very short pick-place, decrease the height.
     pixel_diff = np.linalg.norm(pix0 - pix1)
     z_off_pix = 0
-    if pixel_diff <= 30:
+    if pixel_diff <= 40:
         z_off_pix = 0.020
     print(f'Pixel difference norm: {pixel_diff:0.3f}, z_off_pix: {z_off_pix}')
 
@@ -333,7 +333,7 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
     print(f'\nTranslate to pre-place, dur. {p1_dur}')
     fa.goto_pose(T_ee_world, duration=p1_dur)
 
-    # Lower to place gently. Copy preplace_w and adjust the z axis. Actually
+    # Lower to place gently. Copy preplace_w and adjust the z axis. ALSO
     # if we have an offset (z_off_pix) we have to undo that here.
     placing_w = np.copy(preplace_w)
     #placing_w[2] = DC.Z_PLACE
@@ -348,6 +348,7 @@ def pick_and_place(fa, pix0, pix1, pick_w, place_w, z_delta=0.0,
 
     # Return to pre-placing point. NOTE: if remove lowering, remove this. But
     # lowering seems to help empirically. Also this doesn't need calibration.
+    preplace_w[2] += z_off_pix  # might as well undo the z_off_pix here
     T_ee_world.translation = preplace_w
     print(f'\nReturn to pre-placing.')
     fa.goto_pose(T_ee_world)
