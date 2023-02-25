@@ -592,6 +592,12 @@ def evaluate_masks(mask_curr, mask_goal):
     metrics['pix_white_curr'] = white_curr
     metrics['pix_white_goal'] = white_goal
 
+    # Actually we should use this one.
+    pix_inter = np.sum( np.logical_and(curr_binary, goal_binary) )
+    pix_union = np.sum( np.logical_or( curr_binary, goal_binary) )
+    pix_iou = pix_inter / pix_union
+    metrics['cable_mask_iou'] = pix_iou
+
     return metrics
 
 

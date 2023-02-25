@@ -114,9 +114,11 @@ def save_stuff(args, trial_info):
 
 
 def print_eval_metrics(eval_metrics):
+    # I think we want cable mask IoU.
     print(f'Eval metrics:')
     for key in list(eval_metrics.keys()):
-        print('  {}: {:0.3f}'.format(key, eval_metrics[key]))
+        if key in ['pix_eq_white', 'cable_mask_iou']:
+            print('  {}: {:0.3f}'.format(key, eval_metrics[key]))
 
 
 def run_trial(args, fa, dc, T_cam_ee, goal_info=None):
