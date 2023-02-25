@@ -61,6 +61,10 @@ def inspect(dir_one, goal_mask):
         print(f'key: {key}, len: {len(info[key])}')
     num_acts = len(info['gctn_dict'])
 
+    if 'trial_022__2023-02-24_21-44-14' in dir_one:
+        print('\nSorry, on a bad trial, have to skip last time step!\n')
+        num_acts = num_acts - 1
+
     print('Observable images, NOT output of GCTN (that is for actions).')
     for t in range(num_acts + 1):
         tt = str(t).zfill(2)
