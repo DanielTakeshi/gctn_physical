@@ -1,5 +1,9 @@
 # Physical GCTN Experiments.
 
+Physical experiments for our GCTN paper: https://berkeleyautomation.github.io/bags/
+
+For the simulation code, see https://github.com/DanielTakeshi/deformable-ravens
+
 ## Usage
 
 - Make sure we have a model of GCTN available.
@@ -31,15 +35,8 @@ Directories:
 - `goals_real_cable_line_notarget/` has the goal images for test time rollouts.
 - `real_input/` and `real_output/` are for handling GCTN synchronization.
 
-For the precise steps for experiments, see:
-https://www.notion.so/Progress-Report-Internal-5e92796ab6a94e66a70a6a77d2bbc4b6
-(It's in the February section, initial working version from Feb 16)
-
-For experiment results see:
-https://www.notion.so/Experiments-and-Results-3383c688b93941e69fa5e30b09f770ea
-
-**NOTE: we technically have a termination time step but we are planning to just
-use CTRL+C for exiting. This should still save the right amount of data.**
+NOTE: we technically have a termination time step but we are planning to just
+use CTRL+C for exiting. This should still save the right amount of data.
 
 The main script will save at:
 
