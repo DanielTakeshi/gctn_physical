@@ -4,6 +4,9 @@ Physical experiments for our GCTN paper: https://berkeleyautomation.github.io/ba
 
 For the simulation code, see https://github.com/DanielTakeshi/deformable-ravens
 
+Disclaimer: a lot of this code depends on our physical robot and some modifications to the GCTN training code. We recommend using the code as a reference, but not actually running it.
+
+
 ## Usage
 
 - Make sure we have a model of GCTN available.
